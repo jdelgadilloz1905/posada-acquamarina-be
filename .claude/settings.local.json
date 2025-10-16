@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir)",
+      "Bash(npm init -y)",
+      "Bash(npm install:*)",
+      "Bash(npm run build)",
+      "Bash(tree:*)",
+      "Bash(node seed-rooms.js)",
+      "Bash(npm run start:dev:*)",
+      "Bash(timeout:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(tasklist)",
+      "Bash(taskkill:*)",
+      "Bash(docker exec:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,271 @@
+### Hotel Acquamarina API - Ejemplos de Peticiones HTTP
+### Puedes usar este archivo con las extensiones REST Client de VSCode o similar
+
+@baseUrl = http://localhost:3000
+@token = tu_token_aqui
+
+### ===========================================
+### AUTENTICACIÓN
+### ===========================================
+
+### Registro de nuevo usuario
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "usuario@example.com",
+  "password": "password123",
+  "fullName": "Usuario Prueba",
+  "phone": "+1234567890"
+}
+
+###
+
+### Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "usuario@example.com",
+  "password": "password123"
+}
+
+###
+
+### Registro de Admin
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "admin@acquamarina.com",
+  "password": "Admin123!",
+  "fullName": "Administrador Hotel",
+  "phone": "+123456789",
+  "role": "admin"
+}
+
+###
+
+### Obtener perfil del usuario autenticado
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{token}}
+
+### ===========================================
+### HABITACIONES
+### ===========================================
+
+### Listar todas las habitaciones
+GET {{baseUrl}}/rooms
+
+###
+
+### Crear habitación simple
+POST {{baseUrl}}/rooms
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "roomNumber": "101",
+  "type": "single",
+  "pricePerNight": 80,
+  "capacity": 1,
+  "maxChildren": 0,
+  "description": "Habitación individual con vista al jardín",
+  "amenities": ["WiFi", "TV", "Aire acondicionado"],
+  "status": "available"
+}
+
+###
+
+### Crear habitación doble
+POST {{baseUrl}}/rooms
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "roomNumber": "201",
+  "type": "double",
+  "pricePerNight": 120,
+  "capacity": 2,
+  "maxChildren": 1,
+  "description": "Habitación doble con vista al mar",
+  "amenities": ["WiFi", "TV", "Aire acondicionado", "Mini bar", "Balcón"],
+  "status": "available"
+}
+
+###
+
+### Crear suite
+POST {{baseUrl}}/rooms
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "roomNumber": "301",
+  "type": "suite",
+  "pricePerNight": 250,
+  "capacity": 2,
+  "maxChildren": 2,
+  "description": "Suite de lujo con jacuzzi y vista panorámica",
+  "amenities": ["WiFi", "TV", "Aire acondicionado", "Mini bar", "Jacuzzi", "Balcón", "Sala de estar"],
+  "status": "available"
+}
+
+###
+
+### Crear habitación familiar
+POST {{baseUrl}}/rooms
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "roomNumber": "401",
+  "type": "family",
+  "pricePerNight": 180,
+  "capacity": 4,
+  "maxChildren": 3,
+  "description": "Habitación amplia ideal para familias",
+  "amenities": ["WiFi", "TV", "Aire acondicionado", "Cocina pequeña", "2 baños"],
+  "status": "available"
+}
+
+###
+
+### Obtener habitación por ID
+GET {{baseUrl}}/rooms/ID_HABITACION_AQUI
+
+###
+
+### Buscar habitaciones disponibles
+GET {{baseUrl}}/rooms/available?checkIn=2025-02-01&checkOut=2025-02-05
+
+###
+
+### Actualizar habitación
+PATCH {{baseUrl}}/rooms/ID_HABITACION_AQUI
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "pricePerNight": 175,
+  "status": "available"
+}
+
+###
+
+### Eliminar habitación
+DELETE {{baseUrl}}/rooms/ID_HABITACION_AQUI
+Authorization: Bearer {{token}}
+
+### ===========================================
+### RESERVAS
+### ===========================================
+
+### Crear reserva
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{
+  "checkInDate": "2025-02-15",
+  "checkOutDate": "2025-02-20",
+  "numberOfAdults": 2,
+  "numberOfChildren": 1,
+  "guestName": "María González",
+  "guestEmail": "maria@example.com",
+  "guestPhone": "+123456789",
+  "specialRequests": "Cama extra para niño, vista al mar preferentemente",
+  "roomId": "ID_HABITACION_AQUI"
+}
+
+###
+
+### Listar todas las reservas (Admin) o mis reservas (Usuario)
+GET {{baseUrl}}/reservations
+Authorization: Bearer {{token}}
+
+###
+
+### Mis reservas (Usuario autenticado)
+GET {{baseUrl}}/reservations/my-reservations
+Authorization: Bearer {{token}}
+
+###
+
+### Obtener reserva por ID
+GET {{baseUrl}}/reservations/ID_RESERVA_AQUI
+
+###
+
+### Actualizar reserva
+PATCH {{baseUrl}}/reservations/ID_RESERVA_AQUI
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "specialRequests": "Solicitud actualizada: llegada tarde después de las 10pm",
+  "numberOfChildren": 2
+}
+
+###
+
+### Confirmar reserva
+PATCH {{baseUrl}}/reservations/ID_RESERVA_AQUI/confirm
+Authorization: Bearer {{token}}
+
+###
+
+### Cancelar reserva
+PATCH {{baseUrl}}/reservations/ID_RESERVA_AQUI/cancel
+Authorization: Bearer {{token}}
+
+###
+
+### Eliminar reserva
+DELETE {{baseUrl}}/reservations/ID_RESERVA_AQUI
+Authorization: Bearer {{token}}
+
+### ===========================================
+### USUARIOS (requiere autenticación)
+### ===========================================
+
+### Listar todos los usuarios
+GET {{baseUrl}}/users
+Authorization: Bearer {{token}}
+
+###
+
+### Obtener usuario por ID
+GET {{baseUrl}}/users/ID_USUARIO_AQUI
+Authorization: Bearer {{token}}
+
+###
+
+### Crear usuario
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "email": "nuevo@example.com",
+  "password": "password123",
+  "fullName": "Nuevo Usuario",
+  "phone": "+9876543210",
+  "role": "user"
+}
+
+###
+
+### Actualizar usuario
+PATCH {{baseUrl}}/users/ID_USUARIO_AQUI
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fullName": "Nombre Actualizado",
+  "phone": "+1111111111"
+}
+
+###
+
+### Eliminar usuario
+DELETE {{baseUrl}}/users/ID_USUARIO_AQUI
+Authorization: Bearer {{token}}

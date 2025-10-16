@@ -1,0 +1,176 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║          🏨 INSERTAR LAS 3 HABITACIONES - PASOS RÁPIDOS             ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+
+📌 PASO 1: INICIAR EL SERVIDOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Doble click en: start-dev.bat
+
+  Espera a ver:
+  🚀 Application is running on: http://localhost:3000
+  📚 Swagger documentation: http://localhost:3000/api
+
+
+📌 PASO 2: ABRIR SWAGGER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Abre tu navegador en:
+  http://localhost:3000/api
+
+
+📌 PASO 3: CREAR ADMIN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1. Busca: "Authentication" (verde)
+  2. Click: POST /auth/register
+  3. Click: "Try it out"
+  4. Borra el JSON y pega:
+
+     {
+       "email": "admin@acquamarina.com",
+       "password": "Admin123!",
+       "fullName": "Administrador Hotel",
+       "phone": "+123456789",
+       "role": "admin"
+     }
+
+  5. Click: "Execute"
+  6. COPIA el "access_token" (texto largo que empieza con "eyJ...")
+
+
+📌 PASO 4: AUTORIZAR SWAGGER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1. Arriba derecha: Click en "Authorize" 🔓
+  2. Pega el token completo
+  3. Click: "Authorize"
+  4. Click: "Close"
+
+  ✅ El candado debe estar cerrado ahora: 🔒
+
+
+📌 PASO 5: INSERTAR HABITACIONES (3 veces)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Busca: "Rooms" (verde)
+  Click: POST /rooms
+
+  ═══════════════════════════════════════════════════════════════════
+  HABITACIÓN 1: Saky Saky (Estándar)
+  ═══════════════════════════════════════════════════════════════════
+
+  1. Click: "Try it out"
+  2. Borra el JSON y pega:
+
+     {
+       "roomNumber": "101",
+       "type": "single",
+       "pricePerNight": 520,
+       "capacity": 2,
+       "maxChildren": 0,
+       "description": "Nuestra habitación estándar. Espaciosas habitaciones equipadas con una cama Queen size ideales para parejas que buscan comfort y descanso. Máximo 2 personas.",
+       "amenities": [
+         "Aire acondicionado",
+         "Smart TV",
+         "Caja fuerte",
+         "Almohadas y edredones de plumón de fabricación italiana"
+       ],
+       "status": "available",
+       "videoId": "drLVfiBl1sg"
+     }
+
+  3. Click: "Execute"
+  4. Verifica: Response Code 201 ✅
+
+
+  ═══════════════════════════════════════════════════════════════════
+  HABITACIÓN 2: Noronky (Cuádruple)
+  ═══════════════════════════════════════════════════════════════════
+
+  1. Scroll arriba, click: "Try it out" otra vez
+  2. Borra el JSON y pega:
+
+     {
+       "roomNumber": "201",
+       "type": "quad",
+       "pricePerNight": 720,
+       "capacity": 4,
+       "maxChildren": 2,
+       "description": "Habitación cuádruple amplia con dos camas Queen size. Perfecta para familias o grupos que buscan espacio y comodidad en un ambiente elegante.",
+       "amenities": [
+         "Aire acondicionado",
+         "Smart TV",
+         "Caja fuerte",
+         "Almohadas y edredones de plumón de fabricación italiana"
+       ],
+       "status": "available",
+       "videoId": "zjeCnz67CpU"
+     }
+
+  3. Click: "Execute"
+  4. Verifica: Response Code 201 ✅
+
+
+  ═══════════════════════════════════════════════════════════════════
+  HABITACIÓN 3: Francisky (Familiar)
+  ═══════════════════════════════════════════════════════════════════
+
+  1. Scroll arriba, click: "Try it out" otra vez
+  2. Borra el JSON y pega:
+
+     {
+       "roomNumber": "301",
+       "type": "family",
+       "pricePerNight": 980,
+       "capacity": 6,
+       "maxChildren": 3,
+       "description": "Nuestra habitación familiar más espaciosa. Ideal para familias grandes con múltiples espacios de descanso y áreas comunes. Incluye 1 Cama King + 2 Sofá Cama.",
+       "amenities": [
+         "Aire acondicionado",
+         "Smart TV",
+         "Caja fuerte",
+         "Almohadas y edredones de plumón de fabricación italiana"
+       ],
+       "status": "available",
+       "videoId": "EZ6tsYaqBYk"
+     }
+
+  3. Click: "Execute"
+  4. Verifica: Response Code 201 ✅
+
+
+📌 PASO 6: VERIFICAR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  En Swagger:
+  1. Busca: GET /rooms
+  2. Click: "Try it out"
+  3. Click: "Execute"
+  4. Deberías ver las 3 habitaciones ✅
+
+  O abre en el navegador:
+  http://localhost:3000/rooms
+
+
+═══════════════════════════════════════════════════════════════════════
+
+❌ SI TIENES ERRORES:
+
+  - "Unauthorized" → Ver archivo: SOLUCION_UNAUTHORIZED.md
+  - "Email already exists" → Usa POST /auth/login en lugar de register
+  - "fetch failed" → Asegúrate de que el servidor esté corriendo
+
+═══════════════════════════════════════════════════════════════════════
+
+✨ ¡LISTO! Las 3 habitaciones están insertadas.
+
+   Ahora puedes:
+   - Ver las habitaciones: GET /rooms
+   - Crear reservas: POST /reservations
+   - Conectar tu frontend
+
+═══════════════════════════════════════════════════════════════════════

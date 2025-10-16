@@ -1,0 +1,210 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║         🏨 BACKEND HOTEL ACQUAMARINA - SISTEMA DE RESERVAS          ║
+║                                                                      ║
+║                    ✅ PROYECTO 100% COMPLETO                        ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+
+📋 INICIO RÁPIDO (1 MINUTO)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🐳 CON DOCKER (RECOMENDADO - MÁS FÁCIL):
+════════════════════════════════════════
+
+  1. Asegúrate de que Docker Desktop esté corriendo
+  2. Doble clic en: start-dev.bat
+
+  ¡Listo! El servidor estará en http://localhost:3000
+
+  Ver más: DOCKER.md
+
+
+💻 SIN DOCKER (PostgreSQL Local):
+═══════════════════════════════════
+
+  1. Crear base de datos: CREATE DATABASE hotel_acquamarina;
+  2. Ejecutar: npm run start:dev
+
+  El servidor estará en http://localhost:3000
+
+
+🎯 LO QUE INCLUYE ESTE BACKEND
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Autenticación JWT (registro, login, perfiles)
+✅ Gestión de Usuarios (admin y clientes)
+✅ Gestión de Habitaciones (CRUD completo)
+✅ Sistema de Reservas (crear, listar, actualizar, cancelar)
+✅ Validación automática de disponibilidad
+✅ Cálculo automático de precios (noches × precio)
+✅ Base de datos PostgreSQL con TypeORM
+✅ Validaciones con class-validator
+✅ CORS configurado para frontend
+✅ TypeScript completo
+
+
+📚 DOCUMENTACIÓN DISPONIBLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📄 INICIO_RAPIDO.md       → Guía de inicio rápido
+📄 README.md              → Documentación completa de la API
+📄 DOCKER.md              → 🐳 Configuración con Docker (Recomendado)
+📄 SETUP.md               → Configuración paso a paso
+📄 ESTRUCTURA.md          → Arquitectura del proyecto
+📄 FRONTEND_INTEGRATION.md → Código para conectar el frontend
+📄 ARQUITECTURA.md        → Diagramas y flujos del sistema
+📄 COMANDOS.md            → Referencia rápida de comandos
+📄 api-examples.http      → Ejemplos de peticiones HTTP
+
+
+🔌 ENDPOINTS PRINCIPALES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔐 Autenticación:
+   POST   /auth/register          → Registrarse
+   POST   /auth/login             → Iniciar sesión
+   GET    /auth/me                → Ver perfil (requiere token)
+
+🏨 Habitaciones:
+   GET    /rooms                  → Listar todas
+   GET    /rooms/available        → Habitaciones disponibles
+   POST   /rooms                  → Crear (admin)
+   PATCH  /rooms/:id              → Actualizar (admin)
+   DELETE /rooms/:id              → Eliminar (admin)
+
+📅 Reservas:
+   POST   /reservations           → Crear reserva
+   GET    /reservations           → Listar (filtrado por rol)
+   GET    /reservations/my-reservations → Mis reservas
+   PATCH  /reservations/:id/confirm    → Confirmar
+   PATCH  /reservations/:id/cancel     → Cancelar
+   DELETE /reservations/:id            → Eliminar
+
+
+🎨 INTEGRACIÓN CON TU FORMULARIO DEL FRONTEND
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Endpoint: POST http://localhost:3000/reservations
+
+Datos a enviar:
+{
+  "checkInDate": "2025-02-15",      ← Fecha de llegada
+  "checkOutDate": "2025-02-20",     ← Fecha de salida
+  "numberOfAdults": 2,               ← Adultos (dropdown)
+  "numberOfChildren": 1,             ← Niños (dropdown)
+  "guestName": "Juan Pérez",         ← Nombre completo
+  "guestEmail": "juan@email.com",    ← Correo electrónico
+  "guestPhone": "+58 414 123 4567",  ← Teléfono
+  "specialRequests": "...",          ← Solicitudes especiales
+  "roomId": "uuid-habitacion"        ← ID de la habitación
+}
+
+El backend valida automáticamente:
+✅ Fechas válidas
+✅ Disponibilidad de la habitación
+✅ Calcula el precio total automáticamente
+
+Ver ejemplos completos en: FRONTEND_INTEGRATION.md
+
+
+📦 SCRIPTS DISPONIBLES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🐳 Docker (Windows .bat):
+   start-dev.bat       → Inicia Docker + NestJS automáticamente
+   docker-start.bat    → Solo iniciar PostgreSQL
+   docker-stop.bat     → Detener PostgreSQL
+   docker-logs.bat     → Ver logs de la BD
+   docker-restart.bat  → Reiniciar PostgreSQL
+
+💻 NPM:
+   npm run start:dev   → Desarrollo (con hot-reload)
+   npm run build       → Compilar
+   npm run start:prod  → Producción
+
+
+🔧 TECNOLOGÍAS UTILIZADAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Backend:
+  • NestJS 11.x         → Framework
+  • TypeScript 5.x      → Lenguaje
+  • Express             → HTTP Server
+
+Base de Datos:
+  • PostgreSQL 15       → Base de datos
+  • TypeORM 0.3.x       → ORM
+
+Autenticación:
+  • Passport + JWT      → Autenticación
+  • Bcrypt              → Hash de contraseñas
+
+Validación:
+  • Class Validator     → Validaciones
+  • Class Transformer   → Transformaciones
+
+
+📊 ESTRUCTURA DE LA BASE DE DATOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3 Tablas principales:
+
+📋 users          → Usuarios (admin y clientes)
+🏨 rooms          → Habitaciones del hotel
+📅 reservations   → Reservas de habitaciones
+
+Relaciones:
+  User (1) ──< Reservations (N)
+  Room (1) ──< Reservations (N)
+
+Las tablas se crean automáticamente al iniciar el servidor.
+
+
+🚀 PASOS SIGUIENTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ✅ Iniciar el servidor (start-dev.bat o npm run start:dev)
+2. 📝 Crear usuario admin (ver ejemplos en SETUP.md)
+3. 🏨 Crear habitaciones (ver ejemplos en api-examples.http)
+4. 🎨 Conectar el frontend (ver FRONTEND_INTEGRATION.md)
+5. 🧪 Probar las reservas
+
+
+❓ AYUDA Y SOPORTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ Problema con Docker?
+   → Ver DOCKER.md sección "Solución de Problemas"
+
+⚠️ No puede conectar a la BD?
+   → Verifica que Docker Desktop esté corriendo
+   → O que PostgreSQL local esté activo
+
+⚠️ Error de CORS desde el frontend?
+   → Actualiza FRONTEND_URL en .env
+   → Reinicia el servidor
+
+Para más ayuda, revisa los archivos de documentación.
+
+
+📝 NOTAS IMPORTANTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Este proyecto está configurado para DESARROLLO local
+• En producción, cambiar las credenciales del .env
+• Docker guarda los datos en volúmenes (persisten entre reinicios)
+• El servidor tiene hot-reload (se actualiza automáticamente)
+• Todas las contraseñas se hashean con bcrypt
+• Los tokens JWT expiran en 7 días por defecto
+
+
+═══════════════════════════════════════════════════════════════════════
+
+        🎉 ¡El backend está 100% listo para usar! 🎉
+
+        Para cualquier duda, revisa la documentación en los
+        archivos .md o contacta al equipo de desarrollo.
+
+═══════════════════════════════════════════════════════════════════════
