@@ -70,4 +70,13 @@ export class ClientsService {
   async remove(id: string): Promise<void> {
     await this.clientRepository.delete(id);
   }
+
+  async findAllForSelect(): Promise<Array<{ id: string; fullName: string; email: string }>> {
+    const clients = await this.clientRepository.find({
+      select: ['id', 'fullName', 'email'],
+      order: { fullName: 'ASC' },
+    });
+
+    return clients;
+  }
 }

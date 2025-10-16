@@ -53,6 +53,16 @@ export class RoomsController {
     return this.roomsService.findAvailable(checkInDate, checkOutDate);
   }
 
+  @Get('list')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Listar habitaciones disponibles (para selectores)' })
+  @ApiResponse({ status: 200, description: 'Lista simple de habitaciones con id, número, nombre y precio' })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  findAllForSelect() {
+    return this.roomsService.findAllForSelect();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obtener habitación por ID' })
   @ApiResponse({ status: 200, description: 'Habitación encontrada' })

@@ -46,6 +46,16 @@ export class ClientsController {
     return this.clientsService.findAll(paginationDto);
   }
 
+  @Get('list')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Listar todos los clientes (para selectores)' })
+  @ApiResponse({ status: 200, description: 'Lista simple de clientes con id, nombre y email' })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  findAllForSelect() {
+    return this.clientsService.findAllForSelect();
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')

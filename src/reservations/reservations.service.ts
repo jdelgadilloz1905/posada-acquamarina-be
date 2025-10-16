@@ -8,6 +8,8 @@ import { Repository, Between } from 'typeorm';
 import { Reservation, ReservationStatus } from './entities/reservation.entity';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
+import { CreateReservationAdminDto } from './dto/create-reservation-admin.dto';
+import { UpdateReservationAdminDto } from './dto/update-reservation-admin.dto';
 import { RoomsService } from '../rooms/rooms.service';
 import { ClientsService } from '../clients/clients.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
@@ -177,6 +179,113 @@ export class ReservationsService {
   async confirmReservation(id: string): Promise<Reservation> {
     const reservation = await this.findOne(id);
     reservation.status = ReservationStatus.CONFIRMED;
+    return this.reservationRepository.save(reservation);
+  }
+
+  async createByAdmin(createReservationAdminDto: CreateReservationAdminDto): Promise<Reservation> {
+    const {
+      clientId,
+      roomId,
+      checkInDate,
+      checkOutDate,
+      numberOfAdults,
+      numberOfChildren,
+      specialRequests,
+    } = createReservationAdminDto;
+
+    // Validar fechas
+    const checkIn = new Date(checkInDate);
+    const checkOut = new Date(checkOutDate);
+
+    if (checkIn >= checkOut) {
+      throw new BadRequestException(
+        'Check-out date must be after check-in date',
+      );
+    }
+
+    // Verificar que el cliente existe
+    await this.clientsService.findOne(clientId);
+
+    // Verificar que la habitación existe
+    const room = await this.roomsService.findOne(roomId);
+
+    // Verificar disponibilidad
+    const isAvailable = await this.checkRoomAvailability(
+      roomId,
+      checkIn,
+      checkOut,
+    );
+
+    if (!isAvailable) {
+      throw new BadRequestException('Room is not available for selected dates');
+    }
+
+    // Calcular precio total
+    const nights = Math.ceil(
+      (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    const totalPrice = Number(room.pricePerNight) * nights;
+
+    const reservation = this.reservationRepository.create({
+      clientId,
+      roomId,
+      checkInDate: checkIn,
+      checkOutDate: checkOut,
+      numberOfAdults,
+      numberOfChildren,
+      specialRequests,
+      totalPrice,
+      status: ReservationStatus.PENDING,
+    });
+
+    return this.reservationRepository.save(reservation);
+  }
+
+  async updateByAdmin(
+    id: string,
+    updateReservationAdminDto: UpdateReservationAdminDto,
+  ): Promise<Reservation> {
+    const reservation = await this.findOne(id);
+
+    // Validar cliente si se está actualizando
+    if (updateReservationAdminDto.clientId) {
+      await this.clientsService.findOne(updateReservationAdminDto.clientId);
+    }
+
+    // Validar habitación si se está actualizando
+    if (updateReservationAdminDto.roomId) {
+      await this.roomsService.findOne(updateReservationAdminDto.roomId);
+    }
+
+    // Validar y recalcular precio si se actualizan fechas o habitación
+    if (
+      updateReservationAdminDto.checkInDate ||
+      updateReservationAdminDto.checkOutDate ||
+      updateReservationAdminDto.roomId
+    ) {
+      const checkIn = updateReservationAdminDto.checkInDate
+        ? new Date(updateReservationAdminDto.checkInDate)
+        : reservation.checkInDate;
+      const checkOut = updateReservationAdminDto.checkOutDate
+        ? new Date(updateReservationAdminDto.checkOutDate)
+        : reservation.checkOutDate;
+
+      if (checkIn >= checkOut) {
+        throw new BadRequestException(
+          'Check-out date must be after check-in date',
+        );
+      }
+
+      const roomId = updateReservationAdminDto.roomId || reservation.roomId;
+      const room = await this.roomsService.findOne(roomId);
+
+      const nights = Math.ceil(
+        (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      updateReservationAdminDto['totalPrice'] = Number(room.pricePerNight) * nights;
+    }
+
+    Object.assign(reservation, updateReservationAdminDto);
     return this.reservationRepository.save(reservation);
   }
 

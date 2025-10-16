@@ -70,4 +70,14 @@ export class RoomsService {
   async findByRoomNumber(roomNumber: string): Promise<Room | null> {
     return this.roomRepository.findOne({ where: { roomNumber } });
   }
+
+  async findAllForSelect(): Promise<Array<{ id: string; roomNumber: string; name: string; pricePerNight: number }>> {
+    const rooms = await this.roomRepository.find({
+      select: ['id', 'roomNumber', 'name', 'pricePerNight'],
+      where: { status: RoomStatus.AVAILABLE },
+      order: { roomNumber: 'ASC' },
+    });
+
+    return rooms;
+  }
 }

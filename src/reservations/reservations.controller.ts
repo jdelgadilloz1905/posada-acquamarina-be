@@ -14,6 +14,8 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@ne
 import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
+import { CreateReservationAdminDto } from './dto/create-reservation-admin.dto';
+import { UpdateReservationAdminDto } from './dto/update-reservation-admin.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PaginationDto } from '../common/dto/pagination.dto';
 
@@ -23,11 +25,22 @@ export class ReservationsController {
   constructor(private readonly reservationsService: ReservationsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Crear nueva reserva' })
+  @ApiOperation({ summary: 'Crear nueva reserva (Cliente)' })
   @ApiResponse({ status: 201, description: 'Reserva creada exitosamente' })
   @ApiResponse({ status: 400, description: 'Datos inválidos o habitación no disponible' })
   create(@Body() createReservationDto: CreateReservationDto) {
     return this.reservationsService.create(createReservationDto);
+  }
+
+  @Post('admin')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Crear nueva reserva (Administrador)' })
+  @ApiResponse({ status: 201, description: 'Reserva creada exitosamente' })
+  @ApiResponse({ status: 400, description: 'Datos inválidos o habitación no disponible' })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  createByAdmin(@Body() createReservationAdminDto: CreateReservationAdminDto) {
+    return this.reservationsService.createByAdmin(createReservationAdminDto);
   }
 
   @Get()
@@ -69,6 +82,20 @@ export class ReservationsController {
     @Body() updateReservationDto: UpdateReservationDto,
   ) {
     return this.reservationsService.update(id, updateReservationDto);
+  }
+
+  @Patch('admin/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar reserva (Administrador)' })
+  @ApiResponse({ status: 200, description: 'Reserva actualizada' })
+  @ApiResponse({ status: 404, description: 'Reserva no encontrada' })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  updateByAdmin(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateReservationAdminDto: UpdateReservationAdminDto,
+  ) {
+    return this.reservationsService.updateByAdmin(id, updateReservationAdminDto);
   }
 
   @Patch(':id/confirm')
