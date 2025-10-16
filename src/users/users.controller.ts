@@ -8,11 +8,13 @@ import {
   Delete,
   UseGuards,
   ParseUUIDPipe,
+  Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @ApiTags('Users')
 @Controller('users')
@@ -28,10 +30,10 @@ export class UsersController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar todos los usuarios' })
-  @ApiResponse({ status: 200, description: 'Lista de usuarios' })
-  findAll() {
-    return this.usersService.findAll();
+  @ApiOperation({ summary: 'Listar todos los usuarios con paginación' })
+  @ApiResponse({ status: 200, description: 'Lista paginada de usuarios' })
+  findAll(@Query() paginationDto: PaginationDto) {
+    return this.usersService.findAll(paginationDto);
   }
 
   @Get(':id')

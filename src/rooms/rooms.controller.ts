@@ -15,6 +15,7 @@ import { RoomsService } from './rooms.service';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @ApiTags('Rooms')
 @Controller('rooms')
@@ -32,10 +33,10 @@ export class RoomsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar todas las habitaciones' })
-  @ApiResponse({ status: 200, description: 'Lista de habitaciones' })
-  findAll() {
-    return this.roomsService.findAll();
+  @ApiOperation({ summary: 'Listar todas las habitaciones con paginación' })
+  @ApiResponse({ status: 200, description: 'Lista paginada de habitaciones' })
+  findAll(@Query() paginationDto: PaginationDto) {
+    return this.roomsService.findAll(paginationDto);
   }
 
   @Get('available')

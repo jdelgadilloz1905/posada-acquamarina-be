@@ -8,12 +8,14 @@ import {
   Delete,
   UseGuards,
   ParseUUIDPipe,
+  Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @ApiTags('Reservations')
 @Controller('reservations')
@@ -31,11 +33,11 @@ export class ReservationsController {
   @Get()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Listar todas las reservas (solo admin)' })
-  @ApiResponse({ status: 200, description: 'Lista de reservas' })
+  @ApiOperation({ summary: 'Listar todas las reservas con paginación (solo admin)' })
+  @ApiResponse({ status: 200, description: 'Lista paginada de reservas' })
   @ApiResponse({ status: 401, description: 'No autorizado' })
-  findAll() {
-    return this.reservationsService.findAll();
+  findAll(@Query() paginationDto: PaginationDto) {
+    return this.reservationsService.findAll(paginationDto);
   }
 
   @Get('client/:clientId')

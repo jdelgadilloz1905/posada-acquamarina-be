@@ -10,6 +10,11 @@ import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { RoomsService } from '../rooms/rooms.service';
 import { ClientsService } from '../clients/clients.service';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import {
+  PaginatedResponse,
+  createPaginatedResponse,
+} from '../common/interfaces/paginated-response.interface';
 
 @Injectable()
 export class ReservationsService {
@@ -89,11 +94,20 @@ export class ReservationsService {
     return this.reservationRepository.save(reservation);
   }
 
-  async findAll(): Promise<Reservation[]> {
-    return this.reservationRepository.find({
+  async findAll(
+    paginationDto: PaginationDto,
+  ): Promise<PaginatedResponse<Reservation>> {
+    const { page = 1, limit = 10 } = paginationDto;
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await this.reservationRepository.findAndCount({
       relations: ['client', 'room'],
       order: { createdAt: 'DESC' },
+      skip,
+      take: limit,
     });
+
+    return createPaginatedResponse(data, total, page, limit);
   }
 
   async findByClient(clientId: string): Promise<Reservation[]> {

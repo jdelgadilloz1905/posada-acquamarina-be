@@ -4,6 +4,11 @@ import { Repository } from 'typeorm';
 import { Client } from './entities/client.entity';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import {
+  PaginatedResponse,
+  createPaginatedResponse,
+} from '../common/interfaces/paginated-response.interface';
 
 @Injectable()
 export class ClientsService {
@@ -32,11 +37,18 @@ export class ClientsService {
     return client;
   }
 
-  async findAll(): Promise<Client[]> {
-    return this.clientRepository.find({
+  async findAll(paginationDto: PaginationDto): Promise<PaginatedResponse<Client>> {
+    const { page = 1, limit = 10 } = paginationDto;
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await this.clientRepository.findAndCount({
       relations: ['reservations'],
       order: { createdAt: 'DESC' },
+      skip,
+      take: limit,
     });
+
+    return createPaginatedResponse(data, total, page, limit);
   }
 
   async findOne(id: string): Promise<Client> {
