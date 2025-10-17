@@ -13,7 +13,11 @@
       "Bash(findstr:*)",
       "Bash(tasklist)",
       "Bash(taskkill:*)",
-      "Bash(docker exec:*)"
+      "Bash(docker exec:*)",
+      "Bash(git --version:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
