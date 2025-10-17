@@ -25,6 +25,7 @@ import { AppController } from './app.controller';
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: true, // Temporalmente en true para crear tablas en producción
         logging: configService.get('NODE_ENV') === 'development',
+        ssl: configService.get('NODE_ENV') === 'production' ? { rejectUnauthorized: false } : false,
       }),
       inject: [ConfigService],
     }),
