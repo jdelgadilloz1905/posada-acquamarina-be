@@ -23,7 +23,7 @@ import { AppController } from './app.controller';
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_DATABASE'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: configService.get('NODE_ENV') === 'development',
+        synchronize: true, // Temporalmente en true para crear tablas en producción
         logging: configService.get('NODE_ENV') === 'development',
       }),
       inject: [ConfigService],
