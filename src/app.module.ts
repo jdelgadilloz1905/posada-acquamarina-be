@@ -6,6 +6,7 @@ import { UsersModule } from './users/users.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { RoomsModule } from './rooms/rooms.module';
 import { ClientsModule } from './clients/clients.module';
+import { ContactsModule } from './contacts/contacts.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -34,6 +35,7 @@ import { AppController } from './app.controller';
     ClientsModule,
     ReservationsModule,
     RoomsModule,
+    ContactsModule,
   ],
   controllers: [AppController],
 })
