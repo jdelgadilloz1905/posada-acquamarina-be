@@ -33,26 +33,38 @@ export class Room {
   @Column({ unique: true })
   roomNumber: string;
 
-  @Column({
-    type: 'enum',
-    enum: RoomType,
-  })
-  type: RoomType;
+  @Column({ nullable: true })
+  type: string; // Ej: "Estándar", "Cuádruple", "Familiar"
 
-  @Column('decimal', { precision: 10, scale: 2 })
-  pricePerNight: number;
+  @Column({ nullable: true })
+  capacity: string; // Ej: "Max 2 Huéspedes"
 
   @Column({ default: 2 })
-  capacity: number;
+  maxGuests: number; // Número máximo de huéspedes
 
-  @Column({ default: 0 })
-  maxChildren: number;
+  @Column({ nullable: true })
+  bed: string; // Ej: "1 Cama Queen Size", "2 Camas Queen Size"
 
   @Column('text', { nullable: true })
   description: string;
 
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  price: number;
+
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  originalPrice: number;
+
   @Column('simple-array', { nullable: true })
   amenities: string[];
+
+  @Column('simple-array', { nullable: true })
+  images: string[]; // URLs de S3
+
+  @Column({ default: 1 })
+  roomCount: number; // Cantidad de habitaciones de este tipo
+
+  @Column({ nullable: true })
+  videoUrl: string; // URL del video en S3
 
   @Column({
     type: 'enum',
@@ -60,12 +72,6 @@ export class Room {
     default: RoomStatus.AVAILABLE,
   })
   status: RoomStatus;
-
-  @Column('simple-array', { nullable: true })
-  images: string[];
-
-  @Column({ nullable: true })
-  videoId: string;
 
   @OneToMany(() => Reservation, (reservation) => reservation.room)
   reservations: Reservation[];

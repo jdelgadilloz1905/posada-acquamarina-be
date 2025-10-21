@@ -26,9 +26,10 @@ export class RoomsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Crear nueva habitación (Admin)' })
-  @ApiResponse({ status: 201, description: 'Habitación creada' })
+  @ApiResponse({ status: 201, description: 'Habitación creada exitosamente' })
+  @ApiResponse({ status: 400, description: 'Datos inválidos' })
   @ApiResponse({ status: 401, description: 'No autorizado' })
-  create(@Body() createRoomDto: CreateRoomDto) {
+  async create(@Body() createRoomDto: CreateRoomDto) {
     return this.roomsService.create(createRoomDto);
   }
 
@@ -75,7 +76,8 @@ export class RoomsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Actualizar habitación (Admin)' })
-  @ApiResponse({ status: 200, description: 'Habitación actualizada' })
+  @ApiResponse({ status: 200, description: 'Habitación actualizada exitosamente' })
+  @ApiResponse({ status: 400, description: 'Datos inválidos' })
   @ApiResponse({ status: 404, description: 'Habitación no encontrada' })
   update(
     @Param('id', ParseUUIDPipe) id: string,
