@@ -7,6 +7,7 @@ import { ReservationsModule } from './reservations/reservations.module';
 import { RoomsModule } from './rooms/rooms.module';
 import { ClientsModule } from './clients/clients.module';
 import { ContactsModule } from './contacts/contacts.module';
+import { CommonModule } from './common/common.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -30,6 +31,7 @@ import { AppController } from './app.controller';
       }),
       inject: [ConfigService],
     }),
+    CommonModule,
     AuthModule,
     UsersModule,
     ClientsModule,

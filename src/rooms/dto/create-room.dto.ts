@@ -8,19 +8,18 @@ import {
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { RoomType, RoomStatus } from '../entities/room.entity';
+import { RoomStatus } from '../entities/room.entity';
 
 export class CreateRoomDto {
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'Nombre de la habitación',
     example: 'Saky Saky',
   })
-  @IsOptional()
   @IsString()
-  name?: string;
+  name: string;
 
   @ApiProperty({
-    description: 'Número de habitación',
+    description: 'Número de habitación único',
     example: '201',
   })
   @IsString()
@@ -28,56 +27,106 @@ export class CreateRoomDto {
 
   @ApiProperty({
     description: 'Tipo de habitación',
-    enum: RoomType,
-    example: 'double',
+    example: 'Estándar',
   })
-  @IsEnum(RoomType)
-  type: RoomType;
+  @IsString()
+  type: string;
+
+  @ApiPropertyOptional({
+    description: 'Descripción de capacidad',
+    example: 'Max 2 Huéspedes',
+  })
+  @IsOptional()
+  @IsString()
+  capacity?: string;
 
   @ApiProperty({
-    description: 'Precio por noche',
-    example: 120,
-    minimum: 0,
-  })
-  @IsNumber()
-  @Min(0)
-  pricePerNight: number;
-
-  @ApiProperty({
-    description: 'Capacidad de adultos',
+    description: 'Número máximo de huéspedes',
     example: 2,
     minimum: 1,
   })
   @IsInt()
   @Min(1)
-  capacity: number;
-
-  @ApiProperty({
-    description: 'Máximo de niños permitidos',
-    example: 1,
-    minimum: 0,
-  })
-  @IsInt()
-  @Min(0)
-  maxChildren: number;
+  maxGuests: number;
 
   @ApiPropertyOptional({
-    description: 'Descripción de la habitación',
-    example: 'Habitación doble con vista al mar, incluye balcón privado',
+    description: 'Descripción de las camas',
+    example: '1 Cama Queen Size',
   })
   @IsOptional()
   @IsString()
-  description?: string;
+  bed?: string;
+
+  @ApiProperty({
+    description: 'Descripción de la habitación',
+    example: 'Nuestra habitación estándar. Espaciosas habitaciones equipadas con una cama Queen size ideales para parejas que buscan confort y descanso.',
+  })
+  @IsString()
+  description: string;
+
+  @ApiProperty({
+    description: 'Precio actual de la habitación',
+    example: 520,
+    minimum: 0,
+  })
+  @IsNumber()
+  @Min(0)
+  price: number;
 
   @ApiPropertyOptional({
-    description: 'Amenidades de la habitación',
-    example: ['WiFi', 'TV', 'Aire acondicionado', 'Mini bar', 'Balcón'],
-    type: [String],
+    description: 'Precio original (antes de descuento)',
+    example: 632,
+    minimum: 0,
   })
   @IsOptional()
+  @IsNumber()
+  @Min(0)
+  originalPrice?: number;
+
+  @ApiProperty({
+    description: 'Amenidades de la habitación',
+    example: [
+      'Aire acondicionado',
+      'Smart TV',
+      'Caja fuerte',
+      'Kit de baño (Shampoo, body wash, algodones)',
+    ],
+    type: [String],
+  })
   @IsArray()
   @IsString({ each: true })
-  amenities?: string[];
+  amenities: string[];
+
+  @ApiProperty({
+    description: 'URLs de las imágenes de la habitación (ya subidas a S3)',
+    example: [
+      'https://d31a2qy0rggbw3.cloudfront.net/rooms/room-1761082429641.png',
+      'https://d31a2qy0rggbw3.cloudfront.net/rooms/room-1761082429642.png',
+    ],
+    type: [String],
+  })
+  @IsArray()
+  @IsString({ each: true })
+  images: string[];
+
+  @ApiPropertyOptional({
+    description: 'Cantidad de habitaciones de este tipo disponibles',
+    example: 11,
+    minimum: 0,
+    default: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  roomCount?: number;
+
+  @ApiPropertyOptional({
+    description: 'URL del video de la habitación (S3 o externa)',
+    example: 'https://d31a2qy0rggbw3.cloudfront.net/rooms/room-1760668074263.mp4',
+  })
+  @IsOptional()
+  @IsString()
+  videoUrl?: string;
 
   @ApiPropertyOptional({
     description: 'Estado de la habitación',
@@ -88,22 +137,4 @@ export class CreateRoomDto {
   @IsOptional()
   @IsEnum(RoomStatus)
   status?: RoomStatus;
-
-  @ApiPropertyOptional({
-    description: 'URLs de imágenes de la habitación',
-    example: ['https://example.com/room1.jpg', 'https://example.com/room2.jpg'],
-    type: [String],
-  })
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  images?: string[];
-
-  @ApiPropertyOptional({
-    description: 'ID del video de YouTube de la habitación',
-    example: 'drLVfiBl1sg',
-  })
-  @IsOptional()
-  @IsString()
-  videoId?: string;
 }

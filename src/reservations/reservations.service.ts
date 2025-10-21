@@ -79,7 +79,7 @@ export class ReservationsService {
     const nights = Math.ceil(
       (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24),
     );
-    const totalPrice = Number(room.pricePerNight) * nights;
+    const totalPrice = Number(room.price) * nights;
 
     const reservation = this.reservationRepository.create({
       clientId: client.id,
@@ -158,7 +158,7 @@ export class ReservationsService {
       const nights = Math.ceil(
         (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24),
       );
-      updateReservationDto['totalPrice'] = Number(room.pricePerNight) * nights;
+      updateReservationDto['totalPrice'] = Number(room.price) * nights;
     }
 
     Object.assign(reservation, updateReservationDto);
@@ -224,7 +224,7 @@ export class ReservationsService {
     const nights = Math.ceil(
       (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24),
     );
-    const totalPrice = Number(room.pricePerNight) * nights;
+    const totalPrice = Number(room.price) * nights;
 
     const reservation = this.reservationRepository.create({
       clientId,
@@ -282,7 +282,7 @@ export class ReservationsService {
       const nights = Math.ceil(
         (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24),
       );
-      updateReservationAdminDto['totalPrice'] = Number(room.pricePerNight) * nights;
+      updateReservationAdminDto['totalPrice'] = Number(room.price) * nights;
     }
 
     Object.assign(reservation, updateReservationAdminDto);

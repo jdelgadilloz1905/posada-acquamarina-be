@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Room, RoomStatus } from './entities/room.entity';
@@ -9,17 +9,35 @@ import {
   PaginatedResponse,
   createPaginatedResponse,
 } from '../common/interfaces/paginated-response.interface';
+import { S3Service } from '../common/services/s3.service';
 
 @Injectable()
 export class RoomsService {
+  private readonly logger = new Logger(RoomsService.name);
+
   constructor(
     @InjectRepository(Room)
     private readonly roomRepository: Repository<Room>,
+    private readonly s3Service: S3Service,
   ) {}
 
   async create(createRoomDto: CreateRoomDto): Promise<Room> {
-    const room = this.roomRepository.create(createRoomDto);
-    return this.roomRepository.save(room);
+    try {
+      this.logger.log(`Creating new room: ${createRoomDto.name}`);
+
+      // Crear la habitación con las URLs que vienen del frontend
+      const room = this.roomRepository.create({
+        ...createRoomDto,
+        roomCount: createRoomDto.roomCount ?? 1,
+      });
+
+      const savedRoom = await this.roomRepository.save(room);
+      this.logger.log(`Room created successfully with ID: ${savedRoom.id}`);
+      return savedRoom;
+    } catch (error) {
+      this.logger.error(`Error creating room: ${error.message}`);
+      throw error;
+    }
   }
 
   async findAll(paginationDto: PaginationDto): Promise<PaginatedResponse<Room>> {
@@ -57,23 +75,44 @@ export class RoomsService {
   }
 
   async update(id: string, updateRoomDto: UpdateRoomDto): Promise<Room> {
-    const room = await this.findOne(id);
-    Object.assign(room, updateRoomDto);
-    return this.roomRepository.save(room);
+    try {
+      const room = await this.findOne(id);
+      this.logger.log(`Updating room ${id}: ${room.name}`);
+
+      // Actualizar la habitación con los nuevos datos (incluidas las nuevas URLs si vienen)
+      Object.assign(room, updateRoomDto);
+      const updatedRoom = await this.roomRepository.save(room);
+
+      this.logger.log(`Room ${id} updated successfully`);
+      return updatedRoom;
+    } catch (error) {
+      this.logger.error(`Error updating room ${id}: ${error.message}`);
+      throw error;
+    }
   }
 
   async remove(id: string): Promise<void> {
-    const room = await this.findOne(id);
-    await this.roomRepository.remove(room);
+    try {
+      const room = await this.findOne(id);
+      this.logger.log(`Deleting room ${id}: ${room.name}`);
+
+      // El frontend es responsable de eliminar las imágenes y videos de S3
+      // Solo eliminamos el registro de la base de datos
+      await this.roomRepository.remove(room);
+      this.logger.log(`Room ${id} deleted successfully from database`);
+    } catch (error) {
+      this.logger.error(`Error deleting room ${id}: ${error.message}`);
+      throw error;
+    }
   }
 
   async findByRoomNumber(roomNumber: string): Promise<Room | null> {
     return this.roomRepository.findOne({ where: { roomNumber } });
   }
 
-  async findAllForSelect(): Promise<Array<{ id: string; roomNumber: string; name: string; pricePerNight: number }>> {
+  async findAllForSelect(): Promise<Array<{ id: string; roomNumber: string; name: string; price: number }>> {
     const rooms = await this.roomRepository.find({
-      select: ['id', 'roomNumber', 'name', 'pricePerNight'],
+      select: ['id', 'roomNumber', 'name', 'price'],
       where: { status: RoomStatus.AVAILABLE },
       order: { roomNumber: 'ASC' },
     });
