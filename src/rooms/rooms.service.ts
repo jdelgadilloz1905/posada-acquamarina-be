@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Room, RoomStatus } from './entities/room.entity';
@@ -91,15 +91,33 @@ export class RoomsService {
     }
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string): Promise<{ message: string }> {
     try {
       const room = await this.findOne(id);
-      this.logger.log(`Deleting room ${id}: ${room.name}`);
+      this.logger.log(`Attempting to delete room ${id}: ${room.name}`);
+
+      // Verificar si la habitación tiene reservaciones
+      if (room.reservations && room.reservations.length > 0) {
+        const activeReservations = room.reservations.filter(
+          (reservation) => reservation.status !== 'cancelled'
+        );
+
+        if (activeReservations.length > 0) {
+          this.logger.warn(
+            `Cannot delete room ${id}: has ${activeReservations.length} active reservation(s)`
+          );
+          throw new BadRequestException(
+            `No se puede eliminar la habitación "${room.name}" porque tiene ${activeReservations.length} reservación(es) activa(s). Por favor, cancele o complete las reservaciones antes de eliminar la habitación.`
+          );
+        }
+      }
 
       // El frontend es responsable de eliminar las imágenes y videos de S3
       // Solo eliminamos el registro de la base de datos
       await this.roomRepository.remove(room);
       this.logger.log(`Room ${id} deleted successfully from database`);
+
+      return { message: 'Habitación eliminada exitosamente' };
     } catch (error) {
       this.logger.error(`Error deleting room ${id}: ${error.message}`);
       throw error;

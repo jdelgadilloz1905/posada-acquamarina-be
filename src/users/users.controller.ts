@@ -57,8 +57,9 @@ export class UsersController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar usuario' })
-  @ApiResponse({ status: 200, description: 'Usuario eliminado' })
+  @ApiResponse({ status: 200, description: 'Usuario eliminado exitosamente' })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.remove(id);
   }

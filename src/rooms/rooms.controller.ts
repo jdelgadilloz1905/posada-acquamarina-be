@@ -90,8 +90,10 @@ export class RoomsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Eliminar habitación (Admin)' })
-  @ApiResponse({ status: 200, description: 'Habitación eliminada' })
+  @ApiResponse({ status: 200, description: 'Habitación eliminada exitosamente' })
+  @ApiResponse({ status: 400, description: 'No se puede eliminar - tiene reservaciones activas' })
   @ApiResponse({ status: 404, description: 'Habitación no encontrada' })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.roomsService.remove(id);
   }

@@ -46,12 +46,12 @@ export class ReservationsService {
 
     if (checkIn >= checkOut) {
       throw new BadRequestException(
-        'Check-out date must be after check-in date',
+        'La fecha de salida debe ser posterior a la fecha de entrada',
       );
     }
 
     if (checkIn < new Date()) {
-      throw new BadRequestException('Check-in date cannot be in the past');
+      throw new BadRequestException('La fecha de entrada no puede ser en el pasado');
     }
 
     // Verificar que la habitación existe
@@ -65,7 +65,7 @@ export class ReservationsService {
     );
 
     if (!isAvailable) {
-      throw new BadRequestException('Room is not available for selected dates');
+      throw new BadRequestException('La habitación no está disponible para las fechas seleccionadas');
     }
 
     // Buscar o crear cliente automáticamente por email
@@ -127,7 +127,7 @@ export class ReservationsService {
     });
 
     if (!reservation) {
-      throw new NotFoundException(`Reservation with ID ${id} not found`);
+      throw new NotFoundException(`Reservación con ID ${id} no encontrada`);
     }
 
     return reservation;
@@ -150,7 +150,7 @@ export class ReservationsService {
 
       if (checkIn >= checkOut) {
         throw new BadRequestException(
-          'Check-out date must be after check-in date',
+          'La fecha de salida debe ser posterior a la fecha de entrada',
         );
       }
 
@@ -165,9 +165,18 @@ export class ReservationsService {
     return this.reservationRepository.save(reservation);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string): Promise<{ message: string }> {
     const reservation = await this.findOne(id);
+
+    // Advertir si se está eliminando una reservación confirmada
+    if (reservation.status === ReservationStatus.CONFIRMED) {
+      throw new BadRequestException(
+        `No se puede eliminar la reservación porque está en estado "Confirmada". Por favor, cancele la reservación antes de eliminarla.`
+      );
+    }
+
     await this.reservationRepository.remove(reservation);
+    return { message: 'Reservación eliminada exitosamente' };
   }
 
   async cancelReservation(id: string): Promise<Reservation> {
@@ -217,7 +226,7 @@ export class ReservationsService {
     );
 
     if (!isAvailable) {
-      throw new BadRequestException('Room is not available for selected dates');
+      throw new BadRequestException('La habitación no está disponible para las fechas seleccionadas');
     }
 
     // Calcular precio total
@@ -272,7 +281,7 @@ export class ReservationsService {
 
       if (checkIn >= checkOut) {
         throw new BadRequestException(
-          'Check-out date must be after check-in date',
+          'La fecha de salida debe ser posterior a la fecha de entrada',
         );
       }
 
