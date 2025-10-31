@@ -83,8 +83,10 @@ export class ClientsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Eliminar cliente' })
-  @ApiResponse({ status: 200, description: 'Cliente eliminado' })
+  @ApiResponse({ status: 200, description: 'Cliente eliminado exitosamente' })
+  @ApiResponse({ status: 400, description: 'No se puede eliminar - tiene reservaciones activas' })
   @ApiResponse({ status: 404, description: 'Cliente no encontrado' })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.clientsService.remove(id);
   }

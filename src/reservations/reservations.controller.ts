@@ -123,7 +123,9 @@ export class ReservationsController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Eliminar reserva' })
   @ApiResponse({ status: 200, description: 'Reserva eliminada' })
+  @ApiResponse({ status: 400, description: 'No se puede eliminar - reservación confirmada' })
   @ApiResponse({ status: 404, description: 'Reserva no encontrada' })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.reservationsService.remove(id);
   }

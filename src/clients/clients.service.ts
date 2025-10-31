@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Client } from './entities/client.entity';
@@ -67,8 +67,28 @@ export class ClientsService {
     return this.findOne(id);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string): Promise<{ message: string }> {
+    const client = await this.findOne(id);
+
+    if (!client) {
+      throw new NotFoundException(`Cliente con ID ${id} no encontrado`);
+    }
+
+    // Verificar si el cliente tiene reservaciones
+    if (client.reservations && client.reservations.length > 0) {
+      const activeReservations = client.reservations.filter(
+        (reservation) => reservation.status !== 'cancelled'
+      );
+
+      if (activeReservations.length > 0) {
+        throw new BadRequestException(
+          `No se puede eliminar el cliente "${client.fullName}" porque tiene ${activeReservations.length} reservación(es) activa(s). Por favor, cancele o complete las reservaciones antes de eliminar el cliente.`
+        );
+      }
+    }
+
     await this.clientRepository.delete(id);
+    return { message: 'Cliente eliminado exitosamente' };
   }
 
   async findAllForSelect(): Promise<Array<{ id: string; fullName: string; email: string }>> {
