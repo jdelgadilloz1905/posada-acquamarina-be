@@ -1,0 +1,383 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBody } from '@nestjs/swagger';
+import { CloudbedsService } from './cloudbeds.service';
+import { AvailabilityQueryDto, BulkAvailabilityQueryDto } from './dto/availability-query.dto';
+import { CloudbedsCreateReservationDto } from './dto/create-reservation.dto';
+
+@ApiTags('Cloudbeds')
+@Controller('cloudbeds')
+export class CloudbedsController {
+  private readonly logger = new Logger(CloudbedsController.name);
+
+  constructor(private readonly cloudbedsService: CloudbedsService) {}
+
+  @Get('status')
+  @ApiOperation({ summary: 'Check Cloudbeds integration status' })
+  @ApiResponse({ status: 200, description: 'Integration status' })
+  getStatus() {
+    return {
+      enabled: this.cloudbedsService.isEnabled(),
+      message: this.cloudbedsService.isEnabled()
+        ? 'Cloudbeds integration is active'
+        : 'Cloudbeds integration is disabled',
+    };
+  }
+
+  @Get('room-types')
+  @ApiOperation({ summary: 'Get all room types from Cloudbeds' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of all room types from Cloudbeds',
+  })
+  async getAllRoomTypes() {
+    try {
+      this.logger.log('Controller: Starting to fetch room types');
+      const roomTypes = await this.cloudbedsService.getAllRoomTypes();
+      this.logger.log(`Controller: Received ${roomTypes.length} room types`);
+
+      const response = {
+        success: true,
+        data: roomTypes,
+        count: roomTypes.length,
+      };
+
+      this.logger.log(`Controller: Returning response with count: ${response.count}`);
+      return response;
+    } catch (error) {
+      this.logger.error('Error fetching room types');
+      this.logger.error(`Error stack: ${error.stack}`);
+      this.logger.error(`Error message: ${error.message}`);
+      throw new HttpException(
+        error.message || 'Error fetching room types from Cloudbeds',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('availability')
+  @ApiOperation({ summary: 'Check availability for all rooms' })
+  @ApiQuery({ name: 'checkInDate', required: true, example: '2025-12-01' })
+  @ApiQuery({ name: 'checkOutDate', required: true, example: '2025-12-05' })
+  @ApiQuery({ name: 'adults', required: false, example: 2 })
+  @ApiQuery({ name: 'children', required: false, example: 0 })
+  @ApiQuery({ name: 'rooms', required: false, example: 1 })
+  @ApiQuery({ name: 'promoCode', required: false, example: 'SUMMER2025' })
+  @ApiQuery({ name: 'detailedRates', required: false, example: true })
+  @ApiResponse({ status: 200, description: 'Availability results' })
+  async checkAvailability(@Query() query: BulkAvailabilityQueryDto) {
+    const {
+      checkInDate,
+      checkOutDate,
+      adults = 2,
+      children = 0,
+      rooms = 1,
+      promoCode,
+      detailedRates = true,
+    } = query;
+
+    if (!checkInDate || !checkOutDate) {
+      throw new HttpException(
+        'Check-in and check-out dates are required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Validar que checkout sea después de checkin
+    if (new Date(checkOutDate) <= new Date(checkInDate)) {
+      throw new HttpException(
+        'Check-out date must be after check-in date',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    try {
+      const availability = await this.cloudbedsService.checkAvailability(
+        checkInDate,
+        checkOutDate,
+        adults,
+        children,
+        rooms,
+        promoCode,
+        detailedRates,
+      );
+
+      return {
+        success: true,
+        data: availability,
+        count: availability.length,
+        query: {
+          checkInDate,
+          checkOutDate,
+          adults,
+          children,
+          rooms,
+          promoCode,
+          detailedRates,
+        },
+      };
+    } catch (error) {
+      this.logger.error('Error checking availability', error);
+      throw new HttpException(
+        'Error checking availability from Cloudbeds',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('availability/room')
+  @ApiOperation({ summary: 'Check availability for a specific room' })
+  @ApiQuery({ name: 'roomId', required: true, example: '1' })
+  @ApiQuery({ name: 'checkInDate', required: true, example: '2025-12-01' })
+  @ApiQuery({ name: 'checkOutDate', required: true, example: '2025-12-05' })
+  @ApiQuery({ name: 'adults', required: false, example: 2 })
+  @ApiQuery({ name: 'children', required: false, example: 0 })
+  @ApiQuery({ name: 'rooms', required: false, example: 1 })
+  @ApiQuery({ name: 'promoCode', required: false, example: 'SUMMER2025' })
+  @ApiResponse({ status: 200, description: 'Room availability result' })
+  async checkRoomAvailability(@Query() query: AvailabilityQueryDto) {
+    const {
+      roomId,
+      checkInDate,
+      checkOutDate,
+      adults = 2,
+      children = 0,
+      rooms = 1,
+      promoCode,
+    } = query;
+
+    if (!roomId || !checkInDate || !checkOutDate) {
+      throw new HttpException(
+        'Room ID, check-in and check-out dates are required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Validar fechas
+    if (new Date(checkOutDate) <= new Date(checkInDate)) {
+      throw new HttpException(
+        'Check-out date must be after check-in date',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    try {
+      const availability = await this.cloudbedsService.checkRoomAvailability(
+        roomId,
+        checkInDate,
+        checkOutDate,
+        adults,
+        children,
+        rooms,
+        promoCode,
+      );
+
+      return {
+        success: true,
+        data: availability,
+        query: {
+          roomId,
+          checkInDate,
+          checkOutDate,
+          adults,
+          children,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Error checking room ${roomId} availability`, error);
+      throw new HttpException(
+        'Error checking room availability from Cloudbeds',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('pricing')
+  @ApiOperation({ summary: 'Get dynamic pricing for a room' })
+  @ApiQuery({ name: 'roomId', required: true, example: '1' })
+  @ApiQuery({ name: 'checkInDate', required: true, example: '2025-12-01' })
+  @ApiQuery({ name: 'checkOutDate', required: true, example: '2025-12-05' })
+  @ApiResponse({ status: 200, description: 'Dynamic pricing information' })
+  async getDynamicPricing(
+    @Query('roomId') roomId: string,
+    @Query('checkInDate') checkInDate: string,
+    @Query('checkOutDate') checkOutDate: string,
+  ) {
+    if (!roomId || !checkInDate || !checkOutDate) {
+      throw new HttpException(
+        'Room ID, check-in and check-out dates are required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    try {
+      const pricing = await this.cloudbedsService.getDynamicPricing(
+        roomId,
+        checkInDate,
+        checkOutDate,
+      );
+
+      if (!pricing) {
+        return {
+          success: false,
+          message: 'No pricing available for the selected dates',
+          data: null,
+        };
+      }
+
+      return {
+        success: true,
+        data: pricing,
+      };
+    } catch (error) {
+      this.logger.error(`Error fetching pricing for room ${roomId}`, error);
+      throw new HttpException(
+        'Error fetching dynamic pricing from Cloudbeds',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('reservation')
+  @ApiOperation({ summary: 'Create a new reservation in Cloudbeds' })
+  @ApiBody({ type: CloudbedsCreateReservationDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Reservation created successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        reservationId: { type: 'string', example: '123456' },
+        message: { type: 'string', example: 'Reservation created successfully' }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Invalid reservation data' })
+  @ApiResponse({ status: 500, description: 'Error creating reservation' })
+  async createReservation(@Body() reservationDto: CloudbedsCreateReservationDto) {
+    try {
+      this.logger.log(`Creating reservation for ${reservationDto.guestEmail}`);
+
+      // Validar que las fechas sean futuras
+      const checkIn = new Date(reservationDto.startDate);
+      const checkOut = new Date(reservationDto.endDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (checkIn < today) {
+        throw new HttpException(
+          'Check-in date must be in the future',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      if (checkOut <= checkIn) {
+        throw new HttpException(
+          'Check-out date must be after check-in date',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Verificar disponibilidad de TODAS las habitaciones antes de crear la reserva
+      this.logger.log(`Checking availability for ${reservationDto.rooms.length} room type(s)`);
+
+      let totalAmount = 0;
+      let currency = 'USD';
+      const unavailableRooms: string[] = [];
+
+      for (const room of reservationDto.rooms) {
+        const adultsForRoom = reservationDto.adults
+          .filter(a => a.roomTypeID === room.roomTypeID)
+          .reduce((sum, a) => sum + a.quantity, 0);
+
+        const childrenForRoom = reservationDto.children
+          ?.filter(c => c.roomTypeID === room.roomTypeID)
+          .reduce((sum, c) => sum + c.quantity, 0) || 0;
+
+        const availability = await this.cloudbedsService.checkRoomAvailability(
+          room.roomTypeID,
+          reservationDto.startDate,
+          reservationDto.endDate,
+          adultsForRoom,
+          childrenForRoom,
+          room.quantity,
+          reservationDto.promoCode,
+        );
+
+        if (!availability || !availability.available || availability.roomsAvailable < room.quantity) {
+          unavailableRooms.push(`${room.roomTypeID} (requested: ${room.quantity}, available: ${availability?.roomsAvailable || 0})`);
+        } else {
+          // Calcular el total acumulado
+          totalAmount += availability.totalRate * room.quantity;
+          currency = availability.currency;
+        }
+      }
+
+      if (unavailableRooms.length > 0) {
+        throw new HttpException(
+          `Some rooms are not available: ${unavailableRooms.join(', ')}`,
+          HttpStatus.CONFLICT,
+        );
+      }
+
+      // Crear la reserva
+      const result = await this.cloudbedsService.createReservation({
+        startDate: reservationDto.startDate,
+        endDate: reservationDto.endDate,
+        guestFirstName: reservationDto.guestFirstName,
+        guestLastName: reservationDto.guestLastName,
+        guestEmail: reservationDto.guestEmail,
+        guestCountry: reservationDto.guestCountry,
+        guestZip: reservationDto.guestZip,
+        guestPhone: reservationDto.guestPhone,
+        guestGender: reservationDto.guestGender,
+        estimatedArrivalTime: reservationDto.estimatedArrivalTime,
+        rooms: reservationDto.rooms,
+        adults: reservationDto.adults,
+        children: reservationDto.children,
+        paymentMethod: reservationDto.paymentMethod,
+        cardToken: reservationDto.cardToken,
+        paymentAuthorizationCode: reservationDto.paymentAuthorizationCode,
+        promoCode: reservationDto.promoCode,
+        allotmentBlockCode: reservationDto.allotmentBlockCode,
+        customFields: reservationDto.customFields,
+      });
+
+      if (result.success) {
+        this.logger.log(`Reservation created successfully: ${result.reservationId}`);
+        return {
+          success: true,
+          reservationId: result.reservationId,
+          message: 'Reservation created successfully',
+          totalAmount: totalAmount,
+          currency: currency,
+        };
+      }
+
+      throw new HttpException(
+        result.message || 'Failed to create reservation',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      this.logger.error('Error creating reservation', error);
+      throw new HttpException(
+        'Error creating reservation in Cloudbeds',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+}
