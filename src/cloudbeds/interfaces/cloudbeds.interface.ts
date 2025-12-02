@@ -13,14 +13,20 @@ export interface CloudbedsRoomType {
   roomTypeNameShort: string;
   roomTypeDescription: string;
   maxGuests: number;
-  maxAdults: number;
-  maxChildren: number;
-  defaultDailyRate: number;
-  roomsTotal: number;
-  roomSize: number;
-  bedType: string;
-  roomTypePhotos?: CloudbedsPhoto[];
+  maxAdults?: number;
+  maxChildren?: number;
+  adultsIncluded?: number;
+  childrenIncluded?: number;
+  defaultDailyRate?: number;
+  roomsTotal?: number;
+  roomSize?: number;
+  bedType?: string;
+  roomTypeUnits?: number; // Cantidad de habitaciones de este tipo
+  roomTypePhotos?: string[]; // Array de URLs de fotos
+  roomTypeFeatures?: Record<string, string>; // Amenities como objeto
   roomAmenities?: string[];
+  isPrivate?: boolean;
+  roomsAvailable?: number;
 }
 
 export interface CloudbedsPhoto {
@@ -74,8 +80,8 @@ export interface CloudbedsReservation {
     roomID?: string;
   }>;
 
-  // Arrays de niños por habitación (opcional)
-  children?: Array<{
+  // Arrays de niños por habitación (requerido por Cloudbeds)
+  children: Array<{
     roomTypeID: string;
     quantity: number;
     roomID?: string;
@@ -128,4 +134,49 @@ export interface DynamicPricingResponse {
     date: string;
     price: number;
   }>;
+}
+
+// Calendar availability response from Cloudbeds availability_calendar endpoint
+export interface CalendarRateEntry {
+  package_id: string;
+  association_id: string;
+  rate_id: string;
+  room_type_id: string;
+  rate: string;
+  min_l: number;
+  max_l: number;
+  cta: number;
+  ctd: number;
+  avail: number;
+  closed: number;
+}
+
+export interface CalendarData {
+  [date: string]: CalendarRateEntry[];
+}
+
+// Interfaz para huéspedes de Cloudbeds (getGuestList response)
+export interface CloudbedsGuest {
+  guestID: string;
+  guestFirstName: string;
+  guestLastName: string;
+  guestGender?: string;
+  guestEmail?: string;
+  guestPhone?: string;
+  guestCellPhone?: string;
+  guestCountry?: string;
+  guestAddress?: string;
+  guestCity?: string;
+  guestState?: string;
+  guestZip?: string;
+  guestBirthDate?: string;
+  guestDocumentType?: string;
+  guestDocumentNumber?: string;
+  guestDocumentIssueDate?: string;
+  guestDocumentIssuingCountry?: string;
+  guestDocumentExpirationDate?: string;
+  guestTaxID?: string;
+  guestCompanyName?: string;
+  guestCompanyTaxID?: string;
+  isMainGuest?: boolean;
 }

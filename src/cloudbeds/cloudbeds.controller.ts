@@ -246,6 +246,75 @@ export class CloudbedsController {
     }
   }
 
+  @Post('calendar')
+  @ApiOperation({ summary: 'Get calendar availability with prices' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        startDate: { type: 'string', example: '2025-12-01' },
+        endDate: { type: 'string', example: '2025-12-31' },
+      },
+      required: ['startDate', 'endDate'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Calendar availability data with prices per date',
+  })
+  async getCalendarAvailability(
+    @Body() body: { startDate: string; endDate: string },
+  ) {
+    const { startDate, endDate } = body;
+
+    if (!startDate || !endDate) {
+      throw new HttpException(
+        'Start date and end date are required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Validar formato de fechas
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(endDate);
+
+    if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+      throw new HttpException(
+        'Invalid date format. Use YYYY-MM-DD',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (endDateObj <= startDateObj) {
+      throw new HttpException(
+        'End date must be after start date',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    try {
+      const calendarData = await this.cloudbedsService.getCalendarAvailability(
+        startDate,
+        endDate,
+      );
+
+      return {
+        success: true,
+        data: calendarData,
+        dateRange: {
+          startDate,
+          endDate,
+        },
+      };
+    } catch (error) {
+      this.logger.error('Error fetching calendar data', error);
+      throw new HttpException(
+        'Error fetching calendar data from Cloudbeds',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   @Post('reservation')
   @ApiOperation({ summary: 'Create a new reservation in Cloudbeds' })
   @ApiBody({ type: CloudbedsCreateReservationDto })
@@ -377,6 +446,102 @@ export class CloudbedsController {
       throw new HttpException(
         'Error creating reservation in Cloudbeds',
         HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('sync-rooms')
+  @ApiOperation({
+    summary: 'Synchronize rooms from Cloudbeds to local database',
+    description: 'Fetches all room types from Cloudbeds and creates/updates them in the local database. Preserves local customizations like videoUrl and custom images.'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Rooms synchronized successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        created: { type: 'number', example: 2 },
+        updated: { type: 'number', example: 2 },
+        total: { type: 'number', example: 4 },
+        rooms: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', example: 'Saky Saky King' },
+              action: { type: 'string', example: 'created' },
+              cloudbedsRoomTypeID: { type: 'string', example: '137590389416104' },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 503, description: 'Cloudbeds integration is disabled' })
+  async syncRooms() {
+    try {
+      this.logger.log('Starting room synchronization from Cloudbeds...');
+      const result = await this.cloudbedsService.syncRoomsFromCloudbeds();
+
+      this.logger.log(`Sync completed: ${result.created} created, ${result.updated} updated`);
+
+      return result;
+    } catch (error) {
+      this.logger.error('Error synchronizing rooms', error);
+      throw new HttpException(
+        error.message || 'Error synchronizing rooms from Cloudbeds',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('sync-guests')
+  @ApiOperation({
+    summary: 'Synchronize guests from Cloudbeds to local database',
+    description: 'Fetches all guests from Cloudbeds and creates/updates them in the local clients table. This is informational only - local clients are not deleted.'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Guests synchronized successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        created: { type: 'number', example: 5 },
+        updated: { type: 'number', example: 3 },
+        skipped: { type: 'number', example: 2 },
+        total: { type: 'number', example: 10 },
+        guests: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', example: 'John Doe' },
+              email: { type: 'string', example: 'john@example.com' },
+              action: { type: 'string', example: 'created' },
+              cloudbedsGuestID: { type: 'string', example: '12345678' },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 503, description: 'Cloudbeds integration is disabled' })
+  async syncGuests() {
+    try {
+      this.logger.log('Starting guest synchronization from Cloudbeds...');
+      const result = await this.cloudbedsService.syncGuestsFromCloudbeds();
+
+      this.logger.log(`Guest sync completed: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`);
+
+      return result;
+    } catch (error) {
+      this.logger.error('Error synchronizing guests', error);
+      throw new HttpException(
+        error.message || 'Error synchronizing guests from Cloudbeds',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }

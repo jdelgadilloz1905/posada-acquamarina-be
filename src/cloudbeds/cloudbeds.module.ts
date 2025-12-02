@@ -2,8 +2,11 @@ import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
 import { CacheModule } from '@nestjs/cache-manager';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { CloudbedsService } from './cloudbeds.service';
 import { CloudbedsController } from './cloudbeds.controller';
+import { Room } from '../rooms/entities/room.entity';
+import { Client } from '../clients/entities/client.entity';
 
 @Module({
   imports: [
@@ -16,6 +19,7 @@ import { CloudbedsController } from './cloudbeds.controller';
       ttl: 300, // 5 minutos por defecto
       max: 100, // máximo 100 items en cache
     }),
+    TypeOrmModule.forFeature([Room, Client]),
   ],
   controllers: [CloudbedsController],
   providers: [CloudbedsService],

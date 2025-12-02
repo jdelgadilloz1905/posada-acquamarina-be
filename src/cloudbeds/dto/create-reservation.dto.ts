@@ -52,6 +52,22 @@ class CloudbedsGuestCountDto {
   roomID?: string;
 }
 
+class CloudbedsChildrenCountDto {
+  @ApiProperty({ description: 'Room Type ID', example: '123456' })
+  @IsString()
+  roomTypeID: string;
+
+  @ApiProperty({ description: 'Number of children', example: 0, minimum: 0 })
+  @IsInt()
+  @Min(0)
+  quantity: number;
+
+  @ApiProperty({ description: 'Specific Room ID (optional)', required: false })
+  @IsOptional()
+  @IsString()
+  roomID?: string;
+}
+
 class CloudbedsCustomFieldDto {
   @ApiProperty({ description: 'Custom field name', example: 'special_request' })
   @IsString()
@@ -151,15 +167,14 @@ export class CloudbedsCreateReservationDto {
   adults: CloudbedsGuestCountDto[];
 
   @ApiProperty({
-    description: 'Array of children per room (optional)',
-    type: [CloudbedsGuestCountDto],
-    required: false,
+    description: 'Array of children per room',
+    type: [CloudbedsChildrenCountDto],
+    example: [{ roomTypeID: '123456', quantity: 0 }],
   })
-  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => CloudbedsGuestCountDto)
-  children?: CloudbedsGuestCountDto[];
+  @Type(() => CloudbedsChildrenCountDto)
+  children: CloudbedsChildrenCountDto[];
 
   @ApiProperty({
     description: 'Payment method',
