@@ -218,6 +218,15 @@ export class CloudbedsCreateReservationDto {
   allotmentBlockCode?: string;
 
   @ApiProperty({
+    description: 'Special requests (optional)',
+    example: 'Late check-in, extra towels',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  specialRequests?: string;
+
+  @ApiProperty({
     description: 'Custom fields (optional)',
     type: [CloudbedsCustomFieldDto],
     required: false,

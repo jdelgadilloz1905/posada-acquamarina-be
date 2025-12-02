@@ -11,10 +11,12 @@ import { Client } from '../../clients/entities/client.entity';
 import { Room } from '../../rooms/entities/room.entity';
 
 export enum ReservationStatus {
-  PENDING = 'pending',
-  CONFIRMED = 'confirmed',
-  CANCELLED = 'cancelled',
-  COMPLETED = 'completed',
+  PENDING = 'pending',                    // Confirmación pendiente
+  CONFIRMED = 'confirmed',                // Confirmada
+  CHECKED_IN = 'checked_in',              // Hospedado
+  CHECKED_OUT = 'checked_out',            // Checked Out
+  CANCELLED = 'cancelled',                // Cancelada
+  NO_SHOW = 'no_show',                    // No show
 }
 
 @Entity('reservations')
@@ -78,6 +80,12 @@ export class Reservation {
 
   @Column()
   roomId: string;
+
+  @Column({ nullable: true, unique: true })
+  cloudbedsReservationID: string; // ID de la reservación en Cloudbeds para sincronización
+
+  @Column({ type: 'timestamp', nullable: true })
+  cloudbedsDateCreated: Date; // Fecha original de creación en Cloudbeds
 
   @CreateDateColumn()
   createdAt: Date;

@@ -15,9 +15,11 @@ import {
   DynamicPricingResponse,
   CalendarData,
   CloudbedsGuest,
+  CloudbedsReservationResponse,
 } from './interfaces/cloudbeds.interface';
 import { Room, RoomStatus } from '../rooms/entities/room.entity';
 import { Client } from '../clients/entities/client.entity';
+import { Reservation, ReservationStatus } from '../reservations/entities/reservation.entity';
 
 @Injectable()
 export class CloudbedsService {
@@ -34,6 +36,7 @@ export class CloudbedsService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     @InjectRepository(Room) private readonly roomRepository: Repository<Room>,
     @InjectRepository(Client) private readonly clientRepository: Repository<Client>,
+    @InjectRepository(Reservation) private readonly reservationRepository: Repository<Reservation>,
   ) {
     this.apiUrl = this.configService.get<string>('CLOUDBEDS_API_URL');
     this.apiKey = this.configService.get<string>('CLOUDBEDS_API_KEY');
@@ -396,6 +399,11 @@ export class CloudbedsService {
         });
       }
 
+      // Solicitudes especiales (se envía como nota de reservación)
+      if (reservationData.specialRequests) {
+        formData.append('reservationNote', reservationData.specialRequests);
+      }
+
       this.logger.debug('Sending reservation to Cloudbeds with form-urlencoded');
       this.logger.debug(`FormData: ${formData.toString()}`);
 
@@ -447,6 +455,16 @@ export class CloudbedsService {
           this.logger.warn(`Could not update reservation status to not_confirmed: ${updateError.message}`);
         }
 
+        // Crear registro local de la reservación
+        try {
+          await this.createLocalReservation(reservationData, reservationId);
+          this.logger.log(`Local reservation created for Cloudbeds reservation ${reservationId}`);
+        } catch (localError) {
+          // Si falla la creación local, la reserva ya está en Cloudbeds
+          // Solo registrar el error pero no fallar la operación
+          this.logger.warn(`Could not create local reservation: ${localError.message}`);
+        }
+
         return {
           success: true,
           reservationId: reservationId,
@@ -467,6 +485,82 @@ export class CloudbedsService {
         message: error.response?.data?.message || 'Error connecting to Cloudbeds',
       };
     }
+  }
+
+  /**
+   * Crear registro local de la reservación después de crearla en Cloudbeds
+   * Esto permite que las reservaciones aparezcan en el panel de administración
+   */
+  private async createLocalReservation(
+    reservationData: CloudbedsReservation,
+    cloudbedsReservationId: string,
+  ): Promise<void> {
+    // Buscar o crear el cliente local
+    const guestEmail = reservationData.guestEmail?.toLowerCase().trim();
+    const guestName = `${reservationData.guestFirstName} ${reservationData.guestLastName}`.trim();
+    const guestPhone = reservationData.guestPhone || '';
+
+    let client = await this.clientRepository.findOne({
+      where: { email: guestEmail },
+    });
+
+    if (!client) {
+      // Crear nuevo cliente
+      client = this.clientRepository.create({
+        fullName: guestName,
+        email: guestEmail,
+        phone: guestPhone,
+        country: reservationData.guestCountry,
+        zip: reservationData.guestZip,
+      });
+      client = await this.clientRepository.save(client);
+      this.logger.log(`Created new client: ${client.fullName} (${client.id})`);
+    }
+
+    // Buscar la habitación local por cloudbedsRoomTypeID
+    const roomTypeID = reservationData.rooms[0]?.roomTypeID;
+    if (!roomTypeID) {
+      throw new Error('No room type ID found in reservation data');
+    }
+
+    const room = await this.roomRepository.findOne({
+      where: { cloudbedsRoomTypeID: roomTypeID },
+    });
+
+    if (!room) {
+      throw new Error(`Room with cloudbedsRoomTypeID ${roomTypeID} not found locally`);
+    }
+
+    // Calcular totales
+    const totalAdults = reservationData.adults.reduce((sum, a) => sum + a.quantity, 0);
+    const totalChildren = reservationData.children?.reduce((sum, c) => sum + c.quantity, 0) || 0;
+
+    // Parsear fechas como locales
+    const [startYear, startMonth, startDay] = reservationData.startDate.split('-').map(Number);
+    const [endYear, endMonth, endDay] = reservationData.endDate.split('-').map(Number);
+    const checkInDate = new Date(startYear, startMonth - 1, startDay);
+    const checkOutDate = new Date(endYear, endMonth - 1, endDay);
+
+    // Calcular precio total
+    const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
+    const totalPrice = Number(room.price) * nights * reservationData.rooms[0].quantity;
+
+    // Crear la reservación local
+    const reservation = this.reservationRepository.create({
+      clientId: client.id,
+      roomId: room.id,
+      checkInDate,
+      checkOutDate,
+      numberOfAdults: totalAdults,
+      numberOfChildren: totalChildren,
+      specialRequests: reservationData.specialRequests || '',
+      totalPrice,
+      status: ReservationStatus.PENDING,
+      cloudbedsReservationID: cloudbedsReservationId,
+    });
+
+    await this.reservationRepository.save(reservation);
+    this.logger.log(`Local reservation created: ${reservation.id} linked to Cloudbeds ${cloudbedsReservationId}`);
   }
 
   /**
@@ -1038,6 +1132,415 @@ export class CloudbedsService {
       this.logger.error(error);
       throw new HttpException(
         'Error synchronizing guests from Cloudbeds: ' + (error.message || 'Unknown error'),
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Obtener lista de reservaciones desde Cloudbeds
+   * Usa el endpoint getReservations para obtener reservaciones
+   */
+  async getReservationList(
+    status?: string,
+    startDate?: string,
+    endDate?: string,
+    pageNumber?: number,
+    pageSize?: number,
+  ): Promise<CloudbedsReservationResponse[]> {
+    if (!this.enabled) {
+      this.logger.debug('Cloudbeds disabled, skipping reservation list fetch');
+      return [];
+    }
+
+    try {
+      const params: any = {
+        propertyID: this.propertyId,
+      };
+
+      if (status) params.status = status;
+      if (startDate) params.checkInFrom = startDate;
+      if (endDate) params.checkInTo = endDate;
+      if (pageNumber) params.pageNumber = pageNumber;
+      if (pageSize) params.pageSize = pageSize;
+
+      this.logger.log(`Calling Cloudbeds API: ${this.apiUrl}/getReservations`);
+
+      const response = await firstValueFrom(
+        this.httpService.get<CloudbedsApiResponse<CloudbedsReservationResponse[]>>(
+          `${this.apiUrl}/getReservations`,
+          {
+            headers: this.getHeaders(),
+            params,
+          },
+        ),
+      );
+
+      this.logger.log(`Cloudbeds API response status: ${response.status}`);
+      this.logger.log(`Cloudbeds API raw response: ${JSON.stringify(response.data).substring(0, 1000)}`);
+
+      // La respuesta de Cloudbeds puede tener diferentes estructuras
+      let reservations: any[] = [];
+
+      if (response.data.data) {
+        reservations = Array.isArray(response.data.data) ? response.data.data : [];
+      } else if (Array.isArray(response.data)) {
+        reservations = response.data;
+      }
+
+      // Log de la estructura de la primera reservación para debugging
+      if (reservations.length > 0) {
+        this.logger.log(`First reservation structure: ${JSON.stringify(reservations[0])}`);
+        this.logger.log(`Reservation keys: ${Object.keys(reservations[0]).join(', ')}`);
+      }
+
+      this.logger.log(`Fetched ${reservations.length} reservations from Cloudbeds`);
+      return reservations;
+    } catch (error) {
+      this.handleError(error, 'Error fetching reservation list from Cloudbeds');
+    }
+  }
+
+  /**
+   * Sincronizar reservaciones de Cloudbeds con la base de datos local (solo informativo)
+   * - Obtiene todas las reservaciones de Cloudbeds
+   * - Para cada una, busca si existe en la BD local (por cloudbedsReservationID)
+   * - Si existe: actualiza los datos
+   * - Si no existe: crea la reservación con los datos de Cloudbeds
+   * - Intenta vincular con clientes y habitaciones locales por cloudbedsGuestID y cloudbedsRoomTypeID
+   */
+  async syncReservationsFromCloudbeds(): Promise<{
+    success: boolean;
+    created: number;
+    updated: number;
+    skipped: number;
+    total: number;
+    reservations: Array<{
+      reservationID: string;
+      guestName: string;
+      checkIn: string;
+      checkOut: string;
+      status: string;
+      action: 'created' | 'updated' | 'skipped';
+    }>;
+  }> {
+    if (!this.enabled) {
+      throw new HttpException('Cloudbeds integration is disabled', HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    this.logger.log('Starting reservation synchronization from Cloudbeds...');
+
+    try {
+      // Obtener reservaciones de Cloudbeds (últimos 6 meses y próximos 6 meses)
+      const today = new Date();
+      const sixMonthsAgo = new Date(today);
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      const sixMonthsAhead = new Date(today);
+      sixMonthsAhead.setMonth(sixMonthsAhead.getMonth() + 6);
+
+      const startDate = sixMonthsAgo.toISOString().split('T')[0];
+      const endDate = sixMonthsAhead.toISOString().split('T')[0];
+
+      let allReservations: CloudbedsReservationResponse[] = [];
+      let pageNumber = 1;
+      const pageSize = 100;
+      let hasMorePages = true;
+
+      while (hasMorePages) {
+        const reservations = await this.getReservationList(undefined, startDate, endDate, pageNumber, pageSize);
+        allReservations = allReservations.concat(reservations);
+
+        if (reservations.length < pageSize) {
+          hasMorePages = false;
+        } else {
+          pageNumber++;
+        }
+
+        // Límite de seguridad
+        if (pageNumber > 50) {
+          this.logger.warn('Reached max page limit (50) for reservation sync');
+          break;
+        }
+      }
+
+      this.logger.log(`Total reservations fetched from Cloudbeds: ${allReservations.length}`);
+
+      const syncResults: Array<{
+        reservationID: string;
+        guestName: string;
+        checkIn: string;
+        checkOut: string;
+        status: string;
+        action: 'created' | 'updated' | 'skipped';
+      }> = [];
+      let created = 0;
+      let updated = 0;
+      let skipped = 0;
+
+      for (const cbReservation of allReservations) {
+        const resData = cbReservation as any;
+
+        // Obtener ID de la reservación
+        const reservationID = resData.reservationID || resData.reservationId || resData.id || '';
+
+        if (!reservationID) {
+          skipped++;
+          continue;
+        }
+
+        // Obtener nombre del huésped
+        let guestName = '';
+        if (resData.guestFirstName || resData.guestLastName) {
+          guestName = `${resData.guestFirstName || ''} ${resData.guestLastName || ''}`.trim();
+        } else if (resData.guestName) {
+          guestName = resData.guestName;
+        } else {
+          guestName = 'Huésped desconocido';
+        }
+
+        // Obtener fechas
+        const checkInDate = resData.startDate || resData.checkInDate || resData.arrivalDate;
+        const checkOutDate = resData.endDate || resData.checkOutDate || resData.departureDate;
+
+        if (!checkInDate || !checkOutDate) {
+          this.logger.debug(`Skipping reservation ${reservationID}: missing dates`);
+          syncResults.push({
+            reservationID,
+            guestName,
+            checkIn: checkInDate || 'N/A',
+            checkOut: checkOutDate || 'N/A',
+            status: resData.status || 'unknown',
+            action: 'skipped',
+          });
+          skipped++;
+          continue;
+        }
+
+        // Mapear estado de Cloudbeds a nuestro estado local
+        const cloudbedsStatus = (resData.status || '').toLowerCase();
+        let localStatus: ReservationStatus;
+        switch (cloudbedsStatus) {
+          case 'confirmed':
+            localStatus = ReservationStatus.CONFIRMED;
+            break;
+          case 'checked_in':
+          case 'in_house':
+            localStatus = ReservationStatus.CHECKED_IN;
+            break;
+          case 'checked_out':
+            localStatus = ReservationStatus.CHECKED_OUT;
+            break;
+          case 'canceled':
+          case 'cancelled':
+            localStatus = ReservationStatus.CANCELLED;
+            break;
+          case 'no_show':
+            localStatus = ReservationStatus.NO_SHOW;
+            break;
+          default:
+            localStatus = ReservationStatus.PENDING;
+        }
+
+        // Buscar si ya existe en la BD local
+        let existingReservation = await this.reservationRepository.findOne({
+          where: { cloudbedsReservationID: reservationID },
+        });
+
+        // Obtener datos adicionales
+        const adults = resData.adults || resData.adultsNumber || 1;
+        const children = resData.children || resData.childrenNumber || 0;
+        // Buscar el total en varios campos posibles de Cloudbeds API
+        const cloudbedsTotal =
+          resData.grandTotal ||
+          resData.total ||
+          resData.totalAmount ||
+          resData.balance ||
+          resData.subTotal ||
+          resData.totalCharged ||
+          resData.totalRate ||
+          resData.amount ||
+          0;
+        const specialRequests = resData.specialRequests || resData.notes || '';
+        const dateCreated = resData.dateCreated || resData.createdAt; // Fecha original de creación en Cloudbeds
+
+        // Intentar encontrar o crear cliente y habitación locales
+        let clientId: string | null = null;
+        let roomId: string | null = null;
+
+        // Buscar cliente por cloudbedsGuestID o email
+        const guestID = resData.guestID || resData.guestId;
+        const guestEmail = resData.guestEmail?.toLowerCase().trim();
+        const guestPhone = resData.guestPhone || resData.phone || '';
+        const guestCountry = resData.guestCountry || resData.country || '';
+
+        let client = null;
+        if (guestID) {
+          client = await this.clientRepository.findOne({
+            where: { cloudbedsGuestID: guestID },
+          });
+        }
+
+        if (!client && guestEmail) {
+          client = await this.clientRepository.findOne({
+            where: { email: guestEmail },
+          });
+        }
+
+        // Si no existe el cliente, crearlo automáticamente
+        if (!client && guestEmail) {
+          this.logger.log(`Creating new client from reservation: ${guestName} (${guestEmail})`);
+          client = this.clientRepository.create({
+            fullName: guestName,
+            email: guestEmail,
+            phone: guestPhone,
+            country: guestCountry,
+            cloudbedsGuestID: guestID || undefined,
+          });
+          client = await this.clientRepository.save(client);
+        }
+
+        if (client) {
+          clientId = client.id;
+          // Actualizar cloudbedsGuestID si no lo tenía
+          if (guestID && !client.cloudbedsGuestID) {
+            client.cloudbedsGuestID = guestID;
+            await this.clientRepository.save(client);
+          }
+        }
+
+        // Buscar habitación por cloudbedsRoomTypeID
+        const roomTypeID = resData.rooms?.[0]?.roomTypeID || resData.roomTypeID;
+        let room = null;
+
+        if (roomTypeID) {
+          room = await this.roomRepository.findOne({
+            where: { cloudbedsRoomTypeID: roomTypeID },
+          });
+        }
+
+        // Si no encontramos habitación por roomTypeID, buscar la primera disponible
+        if (!room) {
+          const rooms = await this.roomRepository.find({
+            order: { createdAt: 'ASC' },
+            take: 1,
+          });
+          if (rooms.length > 0) {
+            room = rooms[0];
+            this.logger.warn(`Room type ${roomTypeID} not found, using default room: ${room.name}`);
+          }
+        }
+
+        if (room) {
+          roomId = room.id;
+        }
+
+        // Calcular el precio total: usar el de Cloudbeds si existe, sino calcular basado en habitación local
+        let totalPrice = Number(cloudbedsTotal) || 0;
+        if (totalPrice === 0 && room) {
+          // Calcular precio basado en noches y precio de habitación
+          const checkIn = new Date(checkInDate);
+          const checkOut = new Date(checkOutDate);
+          const nights = Math.ceil(
+            (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24),
+          );
+          totalPrice = Number(room.price) * nights;
+          this.logger.debug(
+            `Calculated totalPrice for reservation ${reservationID}: ${nights} nights × $${room.price} = $${totalPrice}`,
+          );
+        }
+
+        // Si no hay cliente (sin email) o no hay habitación en absoluto, omitir
+        if (!clientId || !roomId) {
+          const reason = !clientId ? 'no client email' : 'no room available';
+          this.logger.debug(`Skipping reservation ${reservationID}: ${reason}`);
+          syncResults.push({
+            reservationID,
+            guestName,
+            checkIn: checkInDate,
+            checkOut: checkOutDate,
+            status: cloudbedsStatus,
+            action: 'skipped',
+          });
+          skipped++;
+          continue;
+        }
+
+        if (existingReservation) {
+          // Actualizar reservación existente
+          existingReservation.checkInDate = new Date(checkInDate);
+          existingReservation.checkOutDate = new Date(checkOutDate);
+          existingReservation.numberOfAdults = adults;
+          existingReservation.numberOfChildren = children;
+          existingReservation.totalPrice = totalPrice;
+          existingReservation.status = localStatus;
+          existingReservation.specialRequests = specialRequests;
+          existingReservation.clientId = clientId;
+          existingReservation.roomId = roomId;
+          // Guardar fecha de creación original de Cloudbeds si existe
+          if (dateCreated && !existingReservation.cloudbedsDateCreated) {
+            existingReservation.cloudbedsDateCreated = new Date(dateCreated);
+          }
+
+          await this.reservationRepository.save(existingReservation);
+
+          syncResults.push({
+            reservationID,
+            guestName,
+            checkIn: checkInDate,
+            checkOut: checkOutDate,
+            status: cloudbedsStatus,
+            action: 'updated',
+          });
+          updated++;
+
+          this.logger.debug(`Updated reservation: ${reservationID}`);
+        } else {
+          // Crear nueva reservación
+          const newReservation = this.reservationRepository.create({
+            checkInDate: new Date(checkInDate),
+            checkOutDate: new Date(checkOutDate),
+            numberOfAdults: adults,
+            numberOfChildren: children,
+            totalPrice: totalPrice,
+            status: localStatus,
+            specialRequests: specialRequests,
+            clientId: clientId,
+            roomId: roomId,
+            cloudbedsReservationID: reservationID,
+            cloudbedsDateCreated: dateCreated ? new Date(dateCreated) : undefined,
+          });
+
+          await this.reservationRepository.save(newReservation);
+
+          syncResults.push({
+            reservationID,
+            guestName,
+            checkIn: checkInDate,
+            checkOut: checkOutDate,
+            status: cloudbedsStatus,
+            action: 'created',
+          });
+          created++;
+
+          this.logger.debug(`Created reservation: ${reservationID}`);
+        }
+      }
+
+      this.logger.log(`Reservation synchronization completed: ${created} created, ${updated} updated, ${skipped} skipped`);
+
+      return {
+        success: true,
+        created,
+        updated,
+        skipped,
+        total: allReservations.length,
+        reservations: syncResults,
+      };
+    } catch (error) {
+      this.logger.error('Error synchronizing reservations from Cloudbeds');
+      this.logger.error(error);
+      throw new HttpException(
+        'Error synchronizing reservations from Cloudbeds: ' + (error.message || 'Unknown error'),
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

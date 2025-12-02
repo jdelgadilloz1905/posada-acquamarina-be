@@ -180,3 +180,46 @@ export interface CloudbedsGuest {
   guestCompanyTaxID?: string;
   isMainGuest?: boolean;
 }
+
+// Interfaz para reservaciones de Cloudbeds (getReservations response)
+export interface CloudbedsReservationResponse {
+  reservationID: string;
+  propertyID: string;
+  status: string; // 'confirmed', 'not_confirmed', 'canceled', 'checked_in', 'checked_out', 'no_show'
+  startDate: string;
+  endDate: string;
+  dateCreated: string;
+  dateModified: string;
+
+  // Información del huésped
+  guestID?: string;
+  guestFirstName?: string;
+  guestLastName?: string;
+  guestName?: string;
+  guestEmail?: string;
+  guestPhone?: string;
+  guestCountry?: string;
+
+  // Información de la reservación
+  adults?: number;
+  children?: number;
+  total?: number;
+  balance?: number;
+  grandTotal?: number;
+
+  // Habitaciones asignadas
+  rooms?: Array<{
+    roomID?: string;
+    roomTypeID?: string;
+    roomTypeName?: string;
+    roomName?: string;
+  }>;
+
+  // Notas y solicitudes
+  notes?: string;
+  specialRequests?: string;
+
+  // Fuente de la reservación
+  source?: string;
+  sourceName?: string;
+}

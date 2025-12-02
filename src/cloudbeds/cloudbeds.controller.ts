@@ -336,9 +336,12 @@ export class CloudbedsController {
     try {
       this.logger.log(`Creating reservation for ${reservationDto.guestEmail}`);
 
-      // Validar que las fechas sean futuras
-      const checkIn = new Date(reservationDto.startDate);
-      const checkOut = new Date(reservationDto.endDate);
+      // Validar que las fechas sean futuras (parsear como fecha local, no UTC)
+      const [checkInYear, checkInMonth, checkInDay] = reservationDto.startDate.split('-').map(Number);
+      const [checkOutYear, checkOutMonth, checkOutDay] = reservationDto.endDate.split('-').map(Number);
+      const checkIn = new Date(checkInYear, checkInMonth - 1, checkInDay);
+      const checkOut = new Date(checkOutYear, checkOutMonth - 1, checkOutDay);
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -419,6 +422,7 @@ export class CloudbedsController {
         promoCode: reservationDto.promoCode,
         allotmentBlockCode: reservationDto.allotmentBlockCode,
         customFields: reservationDto.customFields,
+        specialRequests: reservationDto.specialRequests,
       });
 
       if (result.success) {
@@ -541,6 +545,57 @@ export class CloudbedsController {
       this.logger.error('Error synchronizing guests', error);
       throw new HttpException(
         error.message || 'Error synchronizing guests from Cloudbeds',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('sync-reservations')
+  @ApiOperation({
+    summary: 'Synchronize reservations from Cloudbeds to local database',
+    description: 'Fetches reservations from Cloudbeds (last 6 months and next 6 months) and creates/updates them in the local database. Links with local clients and rooms by cloudbedsGuestID and cloudbedsRoomTypeID.'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Reservations synchronized successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        created: { type: 'number', example: 10 },
+        updated: { type: 'number', example: 5 },
+        skipped: { type: 'number', example: 2 },
+        total: { type: 'number', example: 17 },
+        reservations: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              reservationID: { type: 'string', example: '12345' },
+              guestName: { type: 'string', example: 'John Doe' },
+              checkIn: { type: 'string', example: '2025-12-01' },
+              checkOut: { type: 'string', example: '2025-12-05' },
+              status: { type: 'string', example: 'confirmed' },
+              action: { type: 'string', example: 'created' },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 503, description: 'Cloudbeds integration is disabled' })
+  async syncReservations() {
+    try {
+      this.logger.log('Starting reservation synchronization from Cloudbeds...');
+      const result = await this.cloudbedsService.syncReservationsFromCloudbeds();
+
+      this.logger.log(`Reservation sync completed: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`);
+
+      return result;
+    } catch (error) {
+      this.logger.error('Error synchronizing reservations', error);
+      throw new HttpException(
+        error.message || 'Error synchronizing reservations from Cloudbeds',
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
