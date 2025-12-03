@@ -99,15 +99,38 @@ export class ReservationsService {
   async findAll(
     paginationDto: PaginationDto,
   ): Promise<PaginatedResponse<Reservation>> {
-    const { page = 1, limit = 10 } = paginationDto;
+    const { page = 1, limit = 10, search, status } = paginationDto;
     const skip = (page - 1) * limit;
 
-    const [data, total] = await this.reservationRepository.findAndCount({
-      relations: ['client', 'room'],
-      order: { createdAt: 'DESC' },
-      skip,
-      take: limit,
-    });
+    // Usar QueryBuilder para búsqueda con JOIN
+    const queryBuilder = this.reservationRepository
+      .createQueryBuilder('reservation')
+      .leftJoinAndSelect('reservation.client', 'client')
+      .leftJoinAndSelect('reservation.room', 'room');
+
+    // Filtro por búsqueda (cliente o habitación)
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim().toLowerCase()}%`;
+      queryBuilder.andWhere(
+        '(LOWER(client.fullName) LIKE :search OR LOWER(room.roomNumber) LIKE :search OR LOWER(room.name) LIKE :search)',
+        { search: searchTerm },
+      );
+    }
+
+    // Filtro por estado
+    if (status && status.trim()) {
+      queryBuilder.andWhere('reservation.status = :status', { status });
+    }
+
+    // Ordenamiento
+    queryBuilder
+      .orderBy('reservation.cloudbedsDateCreated', 'DESC', 'NULLS LAST')
+      .addOrderBy('reservation.createdAt', 'DESC');
+
+    // Paginación
+    queryBuilder.skip(skip).take(limit);
+
+    const [data, total] = await queryBuilder.getManyAndCount();
 
     return createPaginatedResponse(data, total, page, limit);
   }

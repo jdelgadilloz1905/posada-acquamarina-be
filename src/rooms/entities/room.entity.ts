@@ -66,6 +66,9 @@ export class Room {
   @Column({ nullable: true })
   videoUrl: string; // URL del video en S3
 
+  @Column({ nullable: true, unique: true })
+  cloudbedsRoomTypeID: string; // ID del tipo de habitación en Cloudbeds para sincronización
+
   @Column({
     type: 'enum',
     enum: RoomStatus,
