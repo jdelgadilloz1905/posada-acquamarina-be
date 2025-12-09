@@ -108,11 +108,11 @@ export class ReservationsService {
       .leftJoinAndSelect('reservation.client', 'client')
       .leftJoinAndSelect('reservation.room', 'room');
 
-    // Filtro por búsqueda (cliente o habitación)
+    // Filtro por búsqueda (cliente, habitación o Cloudbeds ID)
     if (search && search.trim()) {
       const searchTerm = `%${search.trim().toLowerCase()}%`;
       queryBuilder.andWhere(
-        '(LOWER(client.fullName) LIKE :search OR LOWER(room.roomNumber) LIKE :search OR LOWER(room.name) LIKE :search)',
+        '(LOWER(client.fullName) LIKE :search OR LOWER(room.roomNumber) LIKE :search OR LOWER(room.name) LIKE :search OR LOWER(reservation.cloudbedsReservationID) LIKE :search)',
         { search: searchTerm },
       );
     }

@@ -32,6 +32,17 @@ export class CloudbedsController {
     };
   }
 
+  @Post('clear-cache')
+  @ApiOperation({ summary: 'Clear availability cache' })
+  @ApiResponse({ status: 200, description: 'Cache cleared successfully' })
+  async clearCache() {
+    await this.cloudbedsService.clearAvailabilityCache();
+    return {
+      success: true,
+      message: 'Availability cache cleared successfully',
+    };
+  }
+
   @Get('room-types')
   @ApiOperation({ summary: 'Get all room types from Cloudbeds' })
   @ApiResponse({
@@ -386,7 +397,7 @@ export class CloudbedsController {
         );
 
         if (!availability || !availability.available || availability.roomsAvailable < room.quantity) {
-          unavailableRooms.push(`${room.roomTypeID} (requested: ${room.quantity}, available: ${availability?.roomsAvailable || 0})`);
+          unavailableRooms.push(room.roomTypeID);
         } else {
           // Calcular el total acumulado
           totalAmount += availability.totalRate * room.quantity;
@@ -395,10 +406,18 @@ export class CloudbedsController {
       }
 
       if (unavailableRooms.length > 0) {
-        throw new HttpException(
-          `Some rooms are not available: ${unavailableRooms.join(', ')}`,
-          HttpStatus.CONFLICT,
-        );
+        // Mensaje amigable para el usuario
+        const errorResponse = {
+          statusCode: HttpStatus.CONFLICT,
+          error: 'ROOMS_NOT_AVAILABLE',
+          message: 'Lo sentimos, la habitación seleccionada no está disponible para las fechas elegidas. Por favor, intenta con otras fechas o selecciona otra habitación.',
+          details: {
+            startDate: reservationDto.startDate,
+            endDate: reservationDto.endDate,
+            unavailableRoomIds: unavailableRooms,
+          },
+        };
+        throw new HttpException(errorResponse, HttpStatus.CONFLICT);
       }
 
       // Crear la reserva
@@ -545,6 +564,150 @@ export class CloudbedsController {
       this.logger.error('Error synchronizing guests', error);
       throw new HttpException(
         error.message || 'Error synchronizing guests from Cloudbeds',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('debug/reservations-raw')
+  @ApiOperation({
+    summary: '[DEBUG] Get raw reservations JSON from Cloudbeds API',
+    description: 'Returns the raw JSON response from Cloudbeds getReservations endpoint to analyze the data structure and date fields.'
+  })
+  @ApiQuery({ name: 'limit', required: false, example: 5, description: 'Number of reservations to fetch (default: 5)' })
+  @ApiResponse({ status: 200, description: 'Raw Cloudbeds response' })
+  async getReservationsRaw(@Query('limit') limit: string = '5') {
+    try {
+      const reservations = await this.cloudbedsService.getReservationList(
+        undefined, // status
+        undefined, // startDate
+        undefined, // endDate
+        1, // pageNumber
+        parseInt(limit) || 5, // pageSize
+      );
+
+      return {
+        success: true,
+        message: 'Raw Cloudbeds reservations response',
+        count: reservations.length,
+        note: 'Examine dateCreated and dateModified fields to see the format',
+        data: reservations,
+      };
+    } catch (error) {
+      this.logger.error('Error fetching raw reservations', error);
+      throw new HttpException(
+        error.message || 'Error fetching reservations from Cloudbeds',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('debug/guests-raw')
+  @ApiOperation({
+    summary: '[DEBUG] Get raw guests JSON from Cloudbeds API',
+    description: 'Returns the raw JSON response from Cloudbeds getGuestList endpoint to analyze the data structure.'
+  })
+  @ApiQuery({ name: 'limit', required: false, example: 5, description: 'Number of guests to fetch (default: 5)' })
+  @ApiResponse({ status: 200, description: 'Raw Cloudbeds response' })
+  async getGuestsRaw(@Query('limit') limit: string = '5') {
+    try {
+      const guests = await this.cloudbedsService.getGuestList(
+        undefined, // status
+        1, // pageNumber
+        parseInt(limit) || 5, // pageSize
+      );
+
+      return {
+        success: true,
+        message: 'Raw Cloudbeds guests response',
+        count: guests.length,
+        data: guests,
+      };
+    } catch (error) {
+      this.logger.error('Error fetching raw guests', error);
+      throw new HttpException(
+        error.message || 'Error fetching guests from Cloudbeds',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('debug/guests-modified')
+  @ApiOperation({
+    summary: '[DEBUG] Get modified guests from Cloudbeds API (getGuestsModified)',
+    description: 'Returns guests modified after a specific date using getGuestsModified endpoint. NOTE: May not include newly created guests.'
+  })
+  @ApiQuery({ name: 'resultsFrom', required: true, example: '2025-12-09 00:00:00', description: 'Filter guests modified after this datetime (format: YYYY-MM-DD HH:mm:ss)' })
+  @ApiQuery({ name: 'limit', required: false, example: 10, description: 'Number of guests to fetch (default: 10)' })
+  @ApiResponse({ status: 200, description: 'Modified guests from Cloudbeds' })
+  async getGuestsModified(
+    @Query('resultsFrom') resultsFrom: string,
+    @Query('limit') limit: string = '10'
+  ) {
+    try {
+      if (!resultsFrom) {
+        throw new HttpException('resultsFrom parameter is required (format: YYYY-MM-DD HH:mm:ss)', HttpStatus.BAD_REQUEST);
+      }
+
+      const guests = await this.cloudbedsService.getGuestsModified(
+        resultsFrom,
+        1, // pageNumber
+        parseInt(limit) || 10, // pageSize
+      );
+
+      return {
+        success: true,
+        message: 'Modified guests from Cloudbeds (getGuestsModified endpoint)',
+        resultsFrom: resultsFrom,
+        count: guests.length,
+        note: 'These are guests MODIFIED after the specified date (may not include NEW guests)',
+        data: guests,
+      };
+    } catch (error) {
+      this.logger.error('Error fetching modified guests', error);
+      throw new HttpException(
+        error.message || 'Error fetching modified guests from Cloudbeds',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('debug/guests-filtered')
+  @ApiOperation({
+    summary: '[DEBUG] Get guests filtered by date from Cloudbeds API (getGuestList with resultsFrom)',
+    description: 'Returns guests created OR modified after a specific date using getGuestList endpoint with resultsFrom parameter.'
+  })
+  @ApiQuery({ name: 'resultsFrom', required: true, example: '2025-12-09 00:00:00', description: 'Filter guests created/modified after this datetime (format: YYYY-MM-DD HH:mm:ss)' })
+  @ApiQuery({ name: 'limit', required: false, example: 10, description: 'Number of guests to fetch (default: 10)' })
+  @ApiResponse({ status: 200, description: 'Filtered guests from Cloudbeds' })
+  async getGuestsFiltered(
+    @Query('resultsFrom') resultsFrom: string,
+    @Query('limit') limit: string = '10'
+  ) {
+    try {
+      if (!resultsFrom) {
+        throw new HttpException('resultsFrom parameter is required (format: YYYY-MM-DD HH:mm:ss)', HttpStatus.BAD_REQUEST);
+      }
+
+      const guests = await this.cloudbedsService.getGuestList(
+        undefined, // status
+        1, // pageNumber
+        parseInt(limit) || 10, // pageSize
+        resultsFrom, // resultsFrom
+      );
+
+      return {
+        success: true,
+        message: 'Filtered guests from Cloudbeds (getGuestList with resultsFrom)',
+        resultsFrom: resultsFrom,
+        count: guests.length,
+        note: 'These are guests CREATED OR MODIFIED after the specified date',
+        data: guests,
+      };
+    } catch (error) {
+      this.logger.error('Error fetching filtered guests', error);
+      throw new HttpException(
+        error.message || 'Error fetching filtered guests from Cloudbeds',
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
