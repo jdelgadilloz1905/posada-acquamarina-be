@@ -44,6 +44,7 @@ export interface CloudbedsAvailability {
   roomRateTotal: number;
   currency: string;
   rateDetails: RateDetail[];
+  maxGuests: number;
 }
 
 export interface RateDetail {
