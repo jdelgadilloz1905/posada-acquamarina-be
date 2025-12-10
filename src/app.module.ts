@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ReservationsModule } from './reservations/reservations.module';
@@ -9,6 +10,9 @@ import { ClientsModule } from './clients/clients.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { CommonModule } from './common/common.module';
 import { CloudbedsModule } from './cloudbeds/cloudbeds.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { SyncModule } from './sync/sync.module';
+import { WebsocketsModule } from './websockets/websockets.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -16,6 +20,7 @@ import { AppController } from './app.controller';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -40,6 +45,9 @@ import { AppController } from './app.controller';
     RoomsModule,
     ContactsModule,
     CloudbedsModule,
+    NotificationsModule,
+    SyncModule,
+    WebsocketsModule,
   ],
   controllers: [AppController],
 })
