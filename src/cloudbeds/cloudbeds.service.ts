@@ -211,6 +211,7 @@ export class CloudbedsService {
                 rate: detail.rate || detail.base_rate || 0,
                 available: roomsAvailable,
               })) || [],
+              maxGuests: room.maxGuests || room.roomTypeCapacity || 2,
             };
           });
         }
