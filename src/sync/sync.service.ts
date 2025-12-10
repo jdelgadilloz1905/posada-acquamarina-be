@@ -98,8 +98,8 @@ export class SyncService {
     };
   }
 
-  // Cron job: ejecutar cada minuto (SOLO PARA PRUEBAS - cambiar a EVERY_HOUR en producción)
-  @Cron(CronExpression.EVERY_MINUTE)
+  // Cron job: ejecutar cada 5 minutos
+  @Cron('*/5 * * * *')
   async handleCron() {
     const cronEnabled = this.configService.get('SYNC_CRON_ENABLED', 'true');
     if (cronEnabled !== 'true') {
@@ -436,17 +436,25 @@ export class SyncService {
       order: { createdAt: 'DESC' },
     });
 
-    // Calcular próxima ejecución (siguiente minuto - PRUEBAS)
+    // Calcular próxima ejecución (cada 5 minutos: 0, 5, 10, 15, etc.)
     const now = new Date();
-    const nextMinute = new Date(now);
-    nextMinute.setMinutes(nextMinute.getMinutes() + 1);
-    nextMinute.setSeconds(0);
-    nextMinute.setMilliseconds(0);
+    const nextSync = new Date(now);
+    const currentMinutes = now.getMinutes();
+    const nextFiveMinuteMark = Math.ceil((currentMinutes + 1) / 5) * 5;
+
+    if (nextFiveMinuteMark >= 60) {
+      nextSync.setHours(nextSync.getHours() + 1);
+      nextSync.setMinutes(0);
+    } else {
+      nextSync.setMinutes(nextFiveMinuteMark);
+    }
+    nextSync.setSeconds(0);
+    nextSync.setMilliseconds(0);
 
     return {
       lastSync,
       isRunning: this.isRunning,
-      nextScheduledSync: nextMinute.toISOString(),
+      nextScheduledSync: nextSync.toISOString(),
     };
   }
 }
