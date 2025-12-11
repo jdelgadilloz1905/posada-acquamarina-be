@@ -8,6 +8,8 @@ import { CloudbedsController } from './cloudbeds.controller';
 import { Room } from '../rooms/entities/room.entity';
 import { Client } from '../clients/entities/client.entity';
 import { Reservation } from '../reservations/entities/reservation.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { WebsocketsModule } from '../websockets/websockets.module';
 
 @Module({
   imports: [
@@ -21,6 +23,8 @@ import { Reservation } from '../reservations/entities/reservation.entity';
       max: 100, // máximo 100 items en cache
     }),
     TypeOrmModule.forFeature([Room, Client, Reservation]),
+    NotificationsModule,
+    WebsocketsModule,
   ],
   controllers: [CloudbedsController],
   providers: [CloudbedsService],

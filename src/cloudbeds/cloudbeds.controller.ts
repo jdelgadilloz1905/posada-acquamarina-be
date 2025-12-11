@@ -12,13 +12,20 @@ import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBody } from '@nestjs/s
 import { CloudbedsService } from './cloudbeds.service';
 import { AvailabilityQueryDto, BulkAvailabilityQueryDto } from './dto/availability-query.dto';
 import { CloudbedsCreateReservationDto } from './dto/create-reservation.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType, NotificationModule } from '../notifications/entities/notification.entity';
+import { WebsocketsGateway } from '../websockets/websockets.gateway';
 
 @ApiTags('Cloudbeds')
 @Controller('cloudbeds')
 export class CloudbedsController {
   private readonly logger = new Logger(CloudbedsController.name);
 
-  constructor(private readonly cloudbedsService: CloudbedsService) {}
+  constructor(
+    private readonly cloudbedsService: CloudbedsService,
+    private readonly notificationsService: NotificationsService,
+    private readonly websocketsGateway: WebsocketsGateway,
+  ) {}
 
   @Get('status')
   @ApiOperation({ summary: 'Check Cloudbeds integration status' })
@@ -446,6 +453,43 @@ export class CloudbedsController {
 
       if (result.success) {
         this.logger.log(`Reservation created successfully: ${result.reservationId}`);
+
+        // Crear notificación para los administradores y emitir por WebSocket
+        try {
+          const guestName = `${reservationDto.guestFirstName} ${reservationDto.guestLastName}`;
+          const roomCount = reservationDto.rooms.reduce((sum, r) => sum + r.quantity, 0);
+          const notificationTitle = 'Nueva reservación';
+          const notificationMessage = `${guestName} ha realizado una nueva reservación (${roomCount} habitación${roomCount > 1 ? 'es' : ''}) del ${reservationDto.startDate} al ${reservationDto.endDate}. Total: ${currency} ${totalAmount.toFixed(2)}`;
+
+          const notifications = await this.notificationsService.createForAllAdmins({
+            type: NotificationType.NEW_RESERVATION,
+            module: NotificationModule.RESERVATIONS,
+            title: notificationTitle,
+            message: notificationMessage,
+            entityId: result.reservationId,
+            entityType: 'reservation',
+          });
+
+          // Emitir evento WebSocket para actualización en tiempo real
+          if (notifications && notifications.length > 0) {
+            const unreadResult = await this.notificationsService.findUnread();
+            this.websocketsGateway.emitNewNotification(
+              {
+                id: notifications[0].id,
+                title: notificationTitle,
+                message: notificationMessage,
+                module: NotificationModule.RESERVATIONS,
+              },
+              unreadResult.total,
+            );
+          }
+
+          this.logger.log(`Notification created and emitted for new reservation: ${result.reservationId}`);
+        } catch (notifError) {
+          // No fallar la reservación si la notificación falla
+          this.logger.error('Error creating notification for new reservation', notifError);
+        }
+
         return {
           success: true,
           reservationId: result.reservationId,
@@ -667,6 +711,37 @@ export class CloudbedsController {
       this.logger.error('Error fetching modified guests', error);
       throw new HttpException(
         error.message || 'Error fetching modified guests from Cloudbeds',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('debug/guest-by-reservation')
+  @ApiOperation({
+    summary: '[DEBUG] Get guest using reservationID from Cloudbeds API',
+    description: 'Returns raw guest data using getGuest endpoint with reservationID parameter. Use this to check if email is included in the response.'
+  })
+  @ApiQuery({ name: 'reservationID', required: true, example: '3QBD8MGJ4W', description: 'Cloudbeds Reservation ID' })
+  @ApiResponse({ status: 200, description: 'Raw guest data from Cloudbeds' })
+  async getGuestByReservation(
+    @Query('reservationID') reservationID: string
+  ) {
+    try {
+      if (!reservationID) {
+        throw new HttpException('reservationID parameter is required', HttpStatus.BAD_REQUEST);
+      }
+
+      const result = await this.cloudbedsService.getGuestByReservation(reservationID);
+
+      return {
+        endpoint: 'getGuest with reservationID',
+        reservationID,
+        rawResponse: result,
+      };
+    } catch (error) {
+      this.logger.error('Error fetching guest by reservation', error);
+      throw new HttpException(
+        error.message || 'Error fetching guest from Cloudbeds',
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

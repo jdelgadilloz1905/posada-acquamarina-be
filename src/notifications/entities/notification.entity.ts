@@ -53,7 +53,7 @@ export class Notification {
   @Column({ type: 'varchar', length: 50, nullable: true })
   entityType: string;
 
-  @Column({ type: 'uuid', nullable: true })
+  @Column({ type: 'varchar', length: 100, nullable: true })
   entityId: string;
 
   @Column({ type: 'boolean', default: false })

@@ -37,7 +37,7 @@ export class SyncService {
 
   /**
    * Obtener la fecha de la última sincronización exitosa
-   * Retorna en formato Cloudbeds: YYYY-MM-DD HH:mm:ss
+   * Retorna en formato Cloudbeds: YYYY-MM-DD HH:mm:ss (en zona horaria de Venezuela UTC-4)
    * Si no hay sync previo, retorna la fecha de hoy a las 00:00:00 para evitar full sync
    */
   async getLastSuccessfulSyncDate(): Promise<string> {
@@ -51,14 +51,22 @@ export class SyncService {
     let date: Date;
     if (lastSuccessfulSync?.startedAt) {
       date = new Date(lastSuccessfulSync.startedAt);
+      // Restar 10 minutos de margen para evitar perder registros por diferencias de reloj
+      date.setMinutes(date.getMinutes() - 10);
     } else {
-      // Si no hay sync previo, usar hoy a las 00:00:00 para evitar full sync
+      // Si no hay sync previo, usar hace 24 horas para evitar full sync masivo
       date = new Date();
-      date.setHours(0, 0, 0, 0);
-      this.logger.log('No previous sync found, using today at 00:00:00 as default');
+      date.setHours(date.getHours() - 24);
+      this.logger.log('No previous sync found, using 24 hours ago as default');
     }
 
-    // Convertir a formato Cloudbeds: YYYY-MM-DD HH:mm:ss
+    // Servidor Contabo está en EST (UTC-5), Cloudbeds/Venezuela está en UTC-4
+    // Necesitamos convertir de EST a Venezuela: sumar 1 hora
+    // Pero el servidor ya interpreta las fechas en su zona local (EST)
+    // Así que simplemente sumamos 1 hora para obtener hora Venezuela
+    date.setHours(date.getHours() + 1);
+
+    // Formatear en el formato que espera Cloudbeds: YYYY-MM-DD HH:mm:ss
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -66,7 +74,8 @@ export class SyncService {
     const minutes = String(date.getMinutes()).padStart(2, '0');
     const seconds = String(date.getSeconds()).padStart(2, '0');
     const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    this.logger.log(`Formatted date for Cloudbeds filter: ${formattedDate}`);
+
+    this.logger.log(`Last sync: ${lastSuccessfulSync?.startedAt || 'none'}, Filter date (Venezuela): ${formattedDate}`);
     return formattedDate;
   }
 
