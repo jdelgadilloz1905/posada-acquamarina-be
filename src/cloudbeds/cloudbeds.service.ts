@@ -1042,6 +1042,86 @@ export class CloudbedsService {
   }
 
   /**
+   * Obtener un huésped específico por su ID desde Cloudbeds
+   * Usa el endpoint getGuest para obtener datos completos incluyendo email
+   * @param guestId - ID del huésped en Cloudbeds
+   */
+  async getGuestById(guestId: string): Promise<CloudbedsGuest | null> {
+    if (!this.enabled) {
+      this.logger.debug('Cloudbeds disabled, skipping guest fetch');
+      return null;
+    }
+
+    try {
+      const params = {
+        propertyID: this.propertyId,
+        guestID: guestId,
+      };
+
+      this.logger.debug(`Fetching guest ${guestId} from Cloudbeds`);
+
+      const response = await firstValueFrom(
+        this.httpService.get<CloudbedsApiResponse<CloudbedsGuest>>(
+          `${this.apiUrl}/getGuest`,
+          {
+            headers: this.getHeaders(),
+            params,
+            timeout: 5000, // 5 segundos timeout
+          },
+        ),
+      );
+
+      if (response.data.success && response.data.data) {
+        return response.data.data as CloudbedsGuest;
+      }
+
+      return null;
+    } catch (error) {
+      // No logear como warning para evitar spam en logs
+      this.logger.debug(`Could not fetch guest ${guestId}: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Obtener un huésped usando el reservationID desde Cloudbeds
+   * Puede devolver más datos que getGuestById ya que está contextualizado a la reserva
+   * @param reservationId - ID de la reservación en Cloudbeds
+   */
+  async getGuestByReservation(reservationId: string): Promise<any | null> {
+    if (!this.enabled) {
+      this.logger.debug('Cloudbeds disabled, skipping guest fetch');
+      return null;
+    }
+
+    try {
+      const params = {
+        propertyID: this.propertyId,
+        reservationID: reservationId,
+      };
+
+      this.logger.debug(`Fetching guest for reservation ${reservationId} from Cloudbeds`);
+
+      const response = await firstValueFrom(
+        this.httpService.get<CloudbedsApiResponse<any>>(
+          `${this.apiUrl}/getGuest`,
+          {
+            headers: this.getHeaders(),
+            params,
+            timeout: 5000,
+          },
+        ),
+      );
+
+      // Devolver la respuesta completa para análisis
+      return response.data;
+    } catch (error) {
+      this.logger.debug(`Could not fetch guest for reservation ${reservationId}: ${error.message}`);
+      return { error: error.message };
+    }
+  }
+
+  /**
    * Obtener lista de huéspedes modificados desde Cloudbeds
    * Usa el endpoint getGuestsModified para obtener solo los huéspedes creados/modificados después de una fecha
    * @param resultsFrom - Fecha en formato YYYY-MM-DD HH:mm:ss para filtrar por fecha de modificación
@@ -1226,6 +1306,7 @@ export class CloudbedsService {
           // Detectar si realmente hay cambios comparando los valores normalizados
           const changes: string[] = [];
           const existingFullName = normalizeStr(existingClient.fullName || '');
+          const existingEmail = existingClient.email?.toLowerCase().trim() || '';
           const existingPhone = normalizeStr(existingClient.phone || '');
           const existingCountry = normalizeStr(existingClient.country || '');
           const existingAddress = normalizeStr(existingClient.address || '');
@@ -1234,6 +1315,10 @@ export class CloudbedsService {
 
           if (existingFullName !== normalizedFullName) {
             changes.push(`nombre: ${existingFullName} → ${normalizedFullName}`);
+          }
+          // Detectar cambio de email (importante para correcciones de soporte)
+          if (email && existingEmail !== email) {
+            changes.push(`email: ${existingEmail} → ${email}`);
           }
           if (phone && existingPhone !== phone) {
             changes.push(`teléfono`);
@@ -1254,6 +1339,7 @@ export class CloudbedsService {
           // Solo actualizar y notificar si realmente hay cambios
           if (changes.length > 0) {
             existingClient.fullName = normalizedFullName;
+            existingClient.email = email; // Actualizar email si cambió en Cloudbeds
             existingClient.phone = phone || existingClient.phone;
             existingClient.country = country || existingClient.country;
             existingClient.address = address || existingClient.address;
@@ -1623,24 +1709,54 @@ export class CloudbedsService {
 
         // Buscar cliente por cloudbedsGuestID o email
         const guestID = resData.guestID || resData.guestId;
-        const guestEmail = resData.guestEmail?.toLowerCase().trim();
-        const guestPhone = resData.guestPhone || resData.phone || '';
-        const guestCountry = resData.guestCountry || resData.country || '';
+        let guestEmail = resData.guestEmail?.toLowerCase().trim() || '';
+        let guestPhone = resData.guestPhone || resData.phone || '';
+        let guestCountry = resData.guestCountry || resData.country || '';
 
         let client = null;
+
+        // Primero buscar por cloudbedsGuestID
         if (guestID) {
           client = await this.clientRepository.findOne({
             where: { cloudbedsGuestID: guestID },
           });
         }
 
+        // Si no encontramos cliente por guestID, buscar por email
         if (!client && guestEmail) {
           client = await this.clientRepository.findOne({
             where: { email: guestEmail },
           });
         }
 
-        // Si no existe el cliente, crearlo automáticamente
+        // Si no hay cliente y no tenemos email, obtenerlo del endpoint getGuest usando reservationID
+        if (!client && !guestEmail) {
+          this.logger.debug(`No email in reservation ${reservationID}, fetching guest details...`);
+          const guestDetails = await this.getGuestByReservation(reservationID);
+
+          if (guestDetails?.success && guestDetails?.data) {
+            const guestData = guestDetails.data;
+            guestEmail = guestData.email?.toLowerCase().trim() || '';
+            guestPhone = guestPhone || guestData.phone || guestData.cellPhone || '';
+            guestCountry = guestCountry || guestData.country || '';
+
+            // Actualizar guestName si obtuvimos datos más completos
+            if (guestData.firstName || guestData.lastName) {
+              guestName = `${guestData.firstName || ''} ${guestData.lastName || ''}`.trim() || guestName;
+            }
+
+            this.logger.debug(`Got guest details for reservation ${reservationID}: email=${guestEmail}`);
+
+            // Ahora buscar cliente por email
+            if (guestEmail) {
+              client = await this.clientRepository.findOne({
+                where: { email: guestEmail },
+              });
+            }
+          }
+        }
+
+        // Si no existe el cliente pero tenemos email, crearlo automáticamente
         if (!client && guestEmail) {
           this.logger.log(`Creating new client from reservation: ${guestName} (${guestEmail})`);
           client = this.clientRepository.create({
