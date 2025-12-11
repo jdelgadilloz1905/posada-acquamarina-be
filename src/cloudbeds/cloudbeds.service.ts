@@ -212,6 +212,9 @@ export class CloudbedsService {
                 available: roomsAvailable,
               })) || [],
               maxGuests: room.maxGuests || room.roomTypeCapacity || 2,
+              // Información de capacidad para adultos y niños
+              adultsIncluded: parseInt(room.adultsIncluded) || parseInt(room.maxGuests) || 2,
+              childrenIncluded: parseInt(room.childrenIncluded) || 0,
             };
           });
         }

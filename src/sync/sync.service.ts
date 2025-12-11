@@ -48,34 +48,34 @@ export class SyncService {
 
     this.logger.log(`Last successful sync found: ${JSON.stringify(lastSuccessfulSync ? { id: lastSuccessfulSync.id, status: lastSuccessfulSync.status, startedAt: lastSuccessfulSync.startedAt } : null)}`);
 
-    let date: Date;
-    if (lastSuccessfulSync?.startedAt) {
-      date = new Date(lastSuccessfulSync.startedAt);
-      // Restar 10 minutos de margen para evitar perder registros por diferencias de reloj
-      date.setMinutes(date.getMinutes() - 10);
-    } else {
-      // Si no hay sync previo, usar hace 24 horas para evitar full sync masivo
-      date = new Date();
-      date.setHours(date.getHours() - 24);
-      this.logger.log('No previous sync found, using 24 hours ago as default');
-    }
+    // IMPORTANTE: El servidor está en EST (UTC-5) pero Cloudbeds usa Venezuela (UTC-4)
+    // Necesitamos convertir la hora actual a Venezuela timezone para el filtro
 
-    // Servidor Contabo está en EST (UTC-5), Cloudbeds/Venezuela está en UTC-4
-    // Necesitamos convertir de EST a Venezuela: sumar 1 hora
-    // Pero el servidor ya interpreta las fechas en su zona local (EST)
-    // Así que simplemente sumamos 1 hora para obtener hora Venezuela
-    date.setHours(date.getHours() + 1);
+    // Obtener hora actual en UTC
+    const nowUtc = Date.now();
 
-    // Formatear en el formato que espera Cloudbeds: YYYY-MM-DD HH:mm:ss
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
+    // Venezuela es UTC-4, así que sumamos -4 horas al UTC
+    // Pero queremos 15 minutos atrás, así que restamos 15 min también
+    const venezuelaOffsetMs = -4 * 60 * 60 * 1000; // UTC-4 en milisegundos
+    const fifteenMinutesMs = 15 * 60 * 1000;
+
+    // Calcular: hora UTC - 15 minutos, luego convertir a "hora de reloj" de Venezuela
+    const targetUtcMs = nowUtc - fifteenMinutesMs;
+    const venezuelaDate = new Date(targetUtcMs + venezuelaOffsetMs);
+
+    // El objeto Date ahora tiene la hora de Venezuela en sus componentes UTC
+    // Usamos getUTC* para obtener los valores correctos
+    const year = venezuelaDate.getUTCFullYear();
+    const month = String(venezuelaDate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(venezuelaDate.getUTCDate()).padStart(2, '0');
+    const hours = String(venezuelaDate.getUTCHours()).padStart(2, '0');
+    const minutes = String(venezuelaDate.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(venezuelaDate.getUTCSeconds()).padStart(2, '0');
     const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 
-    this.logger.log(`Last sync: ${lastSuccessfulSync?.startedAt || 'none'}, Filter date (Venezuela): ${formattedDate}`);
+    // Log para debug con más información
+    const serverNow = new Date();
+    this.logger.log(`Server time (EST): ${serverNow.toISOString()}, Venezuela time filter (15 min ago): ${formattedDate}`);
     return formattedDate;
   }
 

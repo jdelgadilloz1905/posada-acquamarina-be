@@ -385,25 +385,36 @@ export class CloudbedsController {
       const unavailableRooms: string[] = [];
 
       for (const room of reservationDto.rooms) {
-        const adultsForRoom = reservationDto.adults
+        const totalAdultsForRoom = reservationDto.adults
           .filter(a => a.roomTypeID === room.roomTypeID)
           .reduce((sum, a) => sum + a.quantity, 0);
 
-        const childrenForRoom = reservationDto.children
+        const totalChildrenForRoom = reservationDto.children
           ?.filter(c => c.roomTypeID === room.roomTypeID)
           .reduce((sum, c) => sum + c.quantity, 0) || 0;
+
+        // Calcular huéspedes POR HABITACIÓN para la verificación de disponibilidad
+        // Cloudbeds filtra habitaciones basándose en la capacidad por habitación, no el total
+        // Ejemplo: 3 habitaciones con 3 adultos + 3 niños = 1 adulto + 1 niño por habitación
+        const adultsPerRoom = Math.ceil(totalAdultsForRoom / room.quantity);
+        const childrenPerRoom = Math.ceil(totalChildrenForRoom / room.quantity);
+
+        this.logger.log(`Checking availability for room ${room.roomTypeID}: totalAdults=${totalAdultsForRoom}, totalChildren=${totalChildrenForRoom}, rooms=${room.quantity}, adultsPerRoom=${adultsPerRoom}, childrenPerRoom=${childrenPerRoom}`);
 
         const availability = await this.cloudbedsService.checkRoomAvailability(
           room.roomTypeID,
           reservationDto.startDate,
           reservationDto.endDate,
-          adultsForRoom,
-          childrenForRoom,
+          adultsPerRoom,
+          childrenPerRoom,
           room.quantity,
           reservationDto.promoCode,
         );
 
+        this.logger.log(`Availability result: ${JSON.stringify(availability)}`);
+
         if (!availability || !availability.available || availability.roomsAvailable < room.quantity) {
+          this.logger.warn(`Room ${room.roomTypeID} not available: available=${availability?.available}, roomsAvailable=${availability?.roomsAvailable}, requested=${room.quantity}`);
           unavailableRooms.push(room.roomTypeID);
         } else {
           // Calcular el total acumulado
@@ -783,6 +794,72 @@ export class CloudbedsController {
       this.logger.error('Error fetching filtered guests', error);
       throw new HttpException(
         error.message || 'Error fetching filtered guests from Cloudbeds',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('debug/sync-trigger')
+  @ApiOperation({
+    summary: '[DEBUG] Trigger full sync without authentication',
+    description: 'Executes a full sync (rooms, guests, reservations) from Cloudbeds. Use this for testing the sync process.'
+  })
+  @ApiResponse({ status: 200, description: 'Sync result' })
+  async debugSyncTrigger() {
+    try {
+      this.logger.log('[DEBUG] Starting manual sync trigger...');
+
+      // Sync rooms
+      this.logger.log('[DEBUG] Syncing rooms...');
+      const roomsResult = await this.cloudbedsService.syncRoomsFromCloudbeds();
+
+      // Sync guests (incremental - last 15 minutes using Venezuela timezone)
+      const nowUtc = Date.now();
+      const venezuelaOffsetMs = -4 * 60 * 60 * 1000;
+      const fifteenMinutesMs = 15 * 60 * 1000;
+      const targetUtcMs = nowUtc - fifteenMinutesMs;
+      const venezuelaDate = new Date(targetUtcMs + venezuelaOffsetMs);
+
+      const year = venezuelaDate.getUTCFullYear();
+      const month = String(venezuelaDate.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(venezuelaDate.getUTCDate()).padStart(2, '0');
+      const hours = String(venezuelaDate.getUTCHours()).padStart(2, '0');
+      const minutes = String(venezuelaDate.getUTCMinutes()).padStart(2, '0');
+      const seconds = String(venezuelaDate.getUTCSeconds()).padStart(2, '0');
+      const modifiedFrom = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+      this.logger.log(`[DEBUG] Syncing guests modified since: ${modifiedFrom} (Venezuela time)`);
+      const guestsResult = await this.cloudbedsService.syncGuestsFromCloudbeds(modifiedFrom);
+
+      // Sync reservations (incremental - same filter)
+      this.logger.log(`[DEBUG] Syncing reservations modified since: ${modifiedFrom} (Venezuela time)`);
+      const reservationsResult = await this.cloudbedsService.syncReservationsFromCloudbeds(modifiedFrom);
+
+      return {
+        success: true,
+        message: 'Debug sync completed',
+        filterDate: modifiedFrom,
+        serverTime: new Date().toISOString(),
+        rooms: {
+          processed: roomsResult.processed,
+          created: roomsResult.created,
+          updated: roomsResult.updated,
+        },
+        guests: {
+          processed: guestsResult.processed,
+          created: guestsResult.created,
+          updated: guestsResult.updated,
+        },
+        reservations: {
+          processed: reservationsResult.processed,
+          created: reservationsResult.created,
+          updated: reservationsResult.updated,
+        },
+      };
+    } catch (error) {
+      this.logger.error('[DEBUG] Sync trigger failed', error);
+      throw new HttpException(
+        error.message || 'Error during sync',
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
