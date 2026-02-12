@@ -779,23 +779,30 @@ export class CloudbedsService {
       // Obtener tipos de habitación de Cloudbeds
       const cloudbedsRooms = await this.getAllRoomTypes();
 
-      // Obtener precios del endpoint de availability (para una noche mañana)
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const dayAfter = new Date();
-      dayAfter.setDate(dayAfter.getDate() + 2);
-
-      const startDate = tomorrow.toISOString().split('T')[0];
-      const endDate = dayAfter.toISOString().split('T')[0];
-
-      this.logger.log(`Fetching prices from availability endpoint: ${startDate} to ${endDate}`);
-      const availability = await this.checkAvailability(startDate, endDate, 2, 0, 1);
-
-      // Crear un mapa de precios por roomTypeID
+      // Crear un mapa de precios usando defaultDailyRate de getRoomTypes (precio base de Cloudbeds)
       const priceMap = new Map<string, number>();
-      for (const room of availability) {
-        priceMap.set(room.roomTypeID, room.roomRate);
-        this.logger.log(`Price for ${room.roomTypeName} (${room.roomTypeID}): $${room.roomRate}`);
+      for (const room of cloudbedsRooms) {
+        if (room.defaultDailyRate) {
+          priceMap.set(room.roomTypeID, room.defaultDailyRate);
+          this.logger.log(`Base price for ${room.roomTypeName} (${room.roomTypeID}): $${room.defaultDailyRate}`);
+        }
+      }
+
+      // Si no hay precios base, fallback al endpoint de availability
+      if (priceMap.size === 0) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const dayAfter = new Date();
+        dayAfter.setDate(dayAfter.getDate() + 2);
+        const startDate = tomorrow.toISOString().split('T')[0];
+        const endDate = dayAfter.toISOString().split('T')[0];
+
+        this.logger.log(`No base prices found, fetching from availability: ${startDate} to ${endDate}`);
+        const availability = await this.checkAvailability(startDate, endDate, 2, 0, 1);
+        for (const room of availability) {
+          priceMap.set(room.roomTypeID, room.roomRate);
+          this.logger.log(`Availability price for ${room.roomTypeName} (${room.roomTypeID}): $${room.roomRate}`);
+        }
       }
 
       const syncResults: Array<{ name: string; action: 'created' | 'updated'; cloudbedsRoomTypeID: string }> = [];
