@@ -779,30 +779,33 @@ export class CloudbedsService {
       // Obtener tipos de habitación de Cloudbeds
       const cloudbedsRooms = await this.getAllRoomTypes();
 
-      // Crear un mapa de precios usando defaultDailyRate de getRoomTypes (precio base de Cloudbeds)
+      // Obtener precios: probar hoy+1, si no hay disponibilidad probar fechas futuras
       const priceMap = new Map<string, number>();
-      for (const room of cloudbedsRooms) {
-        if (room.defaultDailyRate) {
-          priceMap.set(room.roomTypeID, room.defaultDailyRate);
-          this.logger.log(`Base price for ${room.roomTypeName} (${room.roomTypeID}): $${room.defaultDailyRate}`);
+      const datesToTry = [1, 7, 14, 30, 60]; // días en el futuro
+
+      for (const daysAhead of datesToTry) {
+        if (priceMap.size >= cloudbedsRooms.length) break;
+
+        const start = new Date();
+        start.setDate(start.getDate() + daysAhead);
+        const end = new Date(start);
+        end.setDate(end.getDate() + 1);
+        const startDate = start.toISOString().split('T')[0];
+        const endDate = end.toISOString().split('T')[0];
+
+        this.logger.log(`Fetching prices from availability: ${startDate} to ${endDate}`);
+        const availability = await this.checkAvailability(startDate, endDate, 2, 0, 1);
+
+        for (const room of availability) {
+          if (!priceMap.has(room.roomTypeID)) {
+            priceMap.set(room.roomTypeID, room.roomRate);
+            this.logger.log(`Price for ${room.roomTypeName} (${room.roomTypeID}): $${room.roomRate} (from ${startDate})`);
+          }
         }
       }
 
-      // Si no hay precios base, fallback al endpoint de availability
       if (priceMap.size === 0) {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const dayAfter = new Date();
-        dayAfter.setDate(dayAfter.getDate() + 2);
-        const startDate = tomorrow.toISOString().split('T')[0];
-        const endDate = dayAfter.toISOString().split('T')[0];
-
-        this.logger.log(`No base prices found, fetching from availability: ${startDate} to ${endDate}`);
-        const availability = await this.checkAvailability(startDate, endDate, 2, 0, 1);
-        for (const room of availability) {
-          priceMap.set(room.roomTypeID, room.roomRate);
-          this.logger.log(`Availability price for ${room.roomTypeName} (${room.roomTypeID}): $${room.roomRate}`);
-        }
+        this.logger.warn('Could not fetch prices from any date range');
       }
 
       const syncResults: Array<{ name: string; action: 'created' | 'updated'; cloudbedsRoomTypeID: string }> = [];
