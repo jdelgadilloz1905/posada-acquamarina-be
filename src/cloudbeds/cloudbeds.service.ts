@@ -825,9 +825,43 @@ export class CloudbedsService {
           ? cbRoom.roomTypeDescription.replace(/<[^>]*>/g, '').trim()
           : '';
 
-        // Extraer amenities del objeto roomTypeFeatures
+        // Mapa de traducción de amenidades conocidas (inglés → español)
+        // Las que no estén en el mapa se mantienen tal cual vienen de Cloudbeds
+        const amenityTranslations: Record<string, string> = {
+          'Air-conditioning': 'Aire acondicionado',
+          'Bathrobes': 'Batas de baño',
+          'Cable television': 'Televisión por cable',
+          'Wireless internet (WiFi)': 'Internet inalámbrico (WiFi)',
+          'Coffee maker': 'Cafetera',
+          'Mini-bar': 'Mini-bar',
+          'Safe': 'Caja fuerte',
+          'Hair dryer': 'Secador de cabello',
+          'Iron': 'Plancha',
+          'Telephone': 'Teléfono',
+          'Desk': 'Escritorio',
+          'Balcony': 'Balcón',
+          'Terrace': 'Terraza',
+          'Sea view': 'Vista al mar',
+          'Garden view': 'Vista al jardín',
+          'Pool view': 'Vista a la piscina',
+          'Room service': 'Servicio a la habitación',
+          'Towels': 'Toallas',
+          'Toiletries': 'Artículos de tocador',
+          'Hot water': 'Agua caliente',
+          'Fan': 'Ventilador',
+          'Refrigerator': 'Refrigerador',
+          'Microwave': 'Microondas',
+          'Kitchen': 'Cocina',
+          'Washing machine': 'Lavadora',
+          'Parking': 'Estacionamiento',
+          'Swimming pool': 'Piscina',
+        };
+
+        // Extraer amenities y traducir las conocidas
         const amenities: string[] = cbRoom.roomTypeFeatures
-          ? Object.values(cbRoom.roomTypeFeatures)
+          ? Object.values(cbRoom.roomTypeFeatures).map(
+              (a) => amenityTranslations[a] || a,
+            )
           : [];
 
         // Determinar tipo de cama basado en el nombre
@@ -864,6 +898,12 @@ export class CloudbedsService {
           }
           if (roomPrice > 0 && Number(existingRoom.price) !== roomPrice) {
             changes.push(`precio: $${existingRoom.price} → $${roomPrice}`);
+          }
+          // Comparar amenidades
+          const existingAmenities = JSON.stringify(existingRoom.amenities || []);
+          const newAmenities = JSON.stringify(amenities);
+          if (existingAmenities !== newAmenities) {
+            changes.push(`amenidades`);
           }
 
           // Solo actualizar y notificar si realmente hay cambios
@@ -1291,15 +1331,34 @@ export class CloudbedsService {
           continue;
         }
 
-        // Buscar si ya existe en la BD local (por cloudbedsGuestID o email)
+        // Buscar si ya existe en la BD local (por cloudbedsGuestID primero)
         let existingClient = await this.clientRepository.findOne({
           where: { cloudbedsGuestID: guestID },
         });
 
+        // Fallback por email, pero SOLO si el registro encontrado no tiene ya otro cloudbedsGuestID
+        // Esto evita que múltiples huéspedes de Cloudbeds con el mismo email se sobreescriban entre sí
+        let emailAlreadyTaken = false;
         if (!existingClient && email) {
-          existingClient = await this.clientRepository.findOne({
+          const clientByEmail = await this.clientRepository.findOne({
             where: { email: email },
           });
+          if (clientByEmail) {
+            if (!clientByEmail.cloudbedsGuestID) {
+              // El registro no tiene cloudbedsGuestID, podemos vincularlo
+              existingClient = clientByEmail;
+            } else if (clientByEmail.cloudbedsGuestID === guestID) {
+              // Mismo guest, todo bien
+              existingClient = clientByEmail;
+            } else {
+              // El email ya pertenece a OTRO huésped de Cloudbeds - no sobreescribir
+              emailAlreadyTaken = true;
+              this.logger.warn(
+                `Email ${email} already belongs to Cloudbeds guest ${clientByEmail.cloudbedsGuestID} (${clientByEmail.fullName}). ` +
+                `Current guest ${guestID} (${fullName}) will get a deduplicated email.`
+              );
+            }
+          }
         }
 
         // Normalizar valores (trim y eliminar espacios dobles)
@@ -1389,9 +1448,17 @@ export class CloudbedsService {
           }
         } else {
           // Crear nuevo cliente
+          // Si el email ya está usado por otro huésped de Cloudbeds, generar uno único
+          let clientEmail = email;
+          if (emailAlreadyTaken) {
+            const [localPart, domain] = email.split('@');
+            clientEmail = `${localPart}+cb${guestID}@${domain}`;
+            this.logger.log(`Using deduplicated email for guest ${fullName}: ${clientEmail}`);
+          }
+
           const newClient = this.clientRepository.create({
             fullName: fullName,
-            email: email,
+            email: clientEmail,
             phone: phone,
             country: country,
             address: address,
@@ -1733,10 +1800,23 @@ export class CloudbedsService {
         }
 
         // Si no encontramos cliente por guestID, buscar por email
+        // Pero solo vincular si el registro no tiene ya otro cloudbedsGuestID
+        let resEmailAlreadyTaken = false;
         if (!client && guestEmail) {
-          client = await this.clientRepository.findOne({
+          const clientByEmail = await this.clientRepository.findOne({
             where: { email: guestEmail },
           });
+          if (clientByEmail) {
+            if (!clientByEmail.cloudbedsGuestID || clientByEmail.cloudbedsGuestID === guestID) {
+              client = clientByEmail;
+            } else {
+              // Email pertenece a otro huésped de Cloudbeds
+              resEmailAlreadyTaken = true;
+              this.logger.warn(
+                `Reservation ${reservationID}: email ${guestEmail} belongs to Cloudbeds guest ${clientByEmail.cloudbedsGuestID}, not ${guestID}`
+              );
+            }
+          }
         }
 
         // Si no hay cliente y no tenemos email, obtenerlo del endpoint getGuest usando reservationID
@@ -1757,21 +1837,36 @@ export class CloudbedsService {
 
             this.logger.debug(`Got guest details for reservation ${reservationID}: email=${guestEmail}`);
 
-            // Ahora buscar cliente por email
-            if (guestEmail) {
-              client = await this.clientRepository.findOne({
+            // Buscar cliente por email, respetando cloudbedsGuestID existente
+            if (guestEmail && !resEmailAlreadyTaken) {
+              const clientByEmail = await this.clientRepository.findOne({
                 where: { email: guestEmail },
               });
+              if (clientByEmail) {
+                if (!clientByEmail.cloudbedsGuestID || clientByEmail.cloudbedsGuestID === guestID) {
+                  client = clientByEmail;
+                } else {
+                  resEmailAlreadyTaken = true;
+                }
+              }
             }
           }
         }
 
         // Si no existe el cliente pero tenemos email, crearlo automáticamente
         if (!client && guestEmail) {
-          this.logger.log(`Creating new client from reservation: ${guestName} (${guestEmail})`);
+          // Si el email ya está usado por otro huésped, generar uno único
+          let clientEmail = guestEmail;
+          if (resEmailAlreadyTaken) {
+            const [localPart, domain] = guestEmail.split('@');
+            clientEmail = `${localPart}+cb${guestID || reservationID}@${domain}`;
+            this.logger.log(`Using deduplicated email for reservation client: ${clientEmail}`);
+          }
+
+          this.logger.log(`Creating new client from reservation: ${guestName} (${clientEmail})`);
           client = this.clientRepository.create({
             fullName: guestName,
-            email: guestEmail,
+            email: clientEmail,
             phone: guestPhone,
             country: guestCountry,
             cloudbedsGuestID: guestID || undefined,
